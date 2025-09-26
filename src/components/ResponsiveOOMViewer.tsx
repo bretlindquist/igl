@@ -403,7 +403,7 @@ export default function ResponsiveOOMViewer(props: {
       <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm
                 dark:border-slate-700">
         <table className="min-w-full text-sm">
-           <thead className="bg-slate-100 sticky top-0 z-30 dark:bg-slate-800">
+          <thead className="bg-slate-100 sticky top-0 z-30 dark:bg-slate-800">
   <tr>
     {(() => {
       const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
@@ -422,23 +422,14 @@ export default function ResponsiveOOMViewer(props: {
             key={h}
             className={`px-4 py-3 text-left font-semibold whitespace-nowrap ${stickyClasses}`}
           >
-            <button
-              onClick={() => {
-                if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-                else { setSortKey(h); setSortDir('asc') }
-              }}
-              className="inline-flex items-center gap-1"
-            >
-              {h}
-              {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
-            </button>
+            …
           </th>
         )
       })
     })()}
   </tr>
 </thead>
-
+ 
           <tbody>
   {(() => {
     const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
