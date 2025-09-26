@@ -23,7 +23,7 @@ function parseCSV(csv: string): string[][] {
   return rows.filter(r => r.some(c => String(c).trim().length))
 }
 
-/** Robust header inference: skips single-cell title rows, prefers real header row */
+/** Robust header inference: skips single-cell title rows, prefers real header row (TQE-safe) */
 function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: number } {
   let start = 0
   while (start < matrix.length && matrix[start].every(c => !String(c).trim())) start++
@@ -47,7 +47,6 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
     return alpha / cells.length
   }
 
-  // Decide which row is the header
   let headers: string[]
   let dataStart: number
   const r1LooksLikeHeader = hasHeaderHints(r1) || alphaRatio(r1) >= 0.4
@@ -60,7 +59,7 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
     headers = r2
     dataStart = start + 2
   } else {
-    // tie-break: prefer r1 unless it's very sparse
+    // tie-break: prefer r1 unless very sparse
     const r1NonEmpty = r1.filter(Boolean).length
     const r2NonEmpty = r2.filter(Boolean).length
     if (r1NonEmpty >= Math.floor(0.6 * Math.max(r1.length, r2.length))) {
@@ -83,7 +82,6 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
   return { headers, dataStart }
 }
 
-
 function toCSV(rows: (string | number)[][]): string {
   return rows
     .map(r => r.map(v => {
@@ -98,7 +96,6 @@ function norm(s: string): string {
 }
 
 /* ---------- OOM preset helpers ---------- */
-/** Courses in intended order with flexible matchers (covers minor spelling/punctuation differences). */
 const OOM_COURSES: { id: string; patterns: RegExp[]; display: string }[] = [
   { id: 'tqe1', patterns: [/mission\s*hills\s*norman/i], display: 'Course 1 (TQE1) – Mission Hills Norman' },
   { id: 'tqe2', patterns: [/purunsol/i, /purun\s*sol/i], display: 'Course 2 (TQE2) – Purunsol' },
@@ -108,15 +105,11 @@ const OOM_COURSES: { id: string; patterns: RegExp[]; display: string }[] = [
   { id: 'tqe6', patterns: [/soph?ia\s*green/i, /sohpia\s*green/i], display: 'Course 6 (TQE6) – Sophia Green' },
   { id: 'tqe7', patterns: [/phoenix/i], display: 'Course 7 (TQE7) – Phoenix Resort' },
 ]
-
-/** Non-course summary columns we want for OOM (flex match). */
 const OOM_SUMMARY_LABELS = [
   { key: 'grandTotal', patterns: [/grand\s*total/i] },
-  { key: 'appr', patterns: [/av\.?\s*points?\s*per\s*round/i, /appr/i] },
+  { key: 'appr', patterns: [/av\.?\s*points?\s*per\s*round/i, /\bappr\b/i] },
   { key: 'apprRank', patterns: [/rank.*appr/i, /rank\s*based\s*on\s*appr/i] },
 ]
-
-/** From actual headers, pick the first header that matches any pattern. */
 function pickHeader(headers: string[], patterns: RegExp[]): string | null {
   for (const p of patterns) {
     const hit = headers.find(h => p.test(h))
@@ -124,50 +117,39 @@ function pickHeader(headers: string[], patterns: RegExp[]): string | null {
   }
   return null
 }
-
-/** Given actual headers, synthesize the OOM header order you requested. */
 function buildOomHeaderOrder(headers: string[]): string[] {
   const out: string[] = []
-  // 1) Screen name (various ways it might appear)
   const screenName =
     pickHeader(headers, [/^screen\s*_?\s*name$/i, /^screen\s*name$/i, /^nickname$/i, /^name$/i]) ??
-    'screen_name' // fallback if exact exists
-  if (headers.includes(screenName)) out.push(screenName)
+    (headers.includes('screen_name') ? 'screen_name' : headers[0])
 
-  // 2) Courses 1..7 in intended order
+  if (headers.includes(screenName)) out.push(screenName)
   for (const c of OOM_COURSES) {
     const h = pickHeader(headers, c.patterns)
     if (h) out.push(h)
   }
-
-  // 3) Summary columns
   for (const s of OOM_SUMMARY_LABELS) {
     const h = pickHeader(headers, s.patterns)
     if (h) out.push(h)
   }
-
-  // 4) Duplicate screen name at end for legibility (if we found it)
   if (headers.includes(screenName)) out.push(screenName)
 
-  // Ensure uniqueness, preserve first occurrence
   const seen = new Set<string>()
   return out.filter(h => !seen.has(h) && seen.add(h))
 }
-
-/** Pull "deadline" notes from the bottom misc rows. Highly tolerant matcher. */
 function extractDeadlines(matrix: string[][]): string[] {
   const lines: string[] = []
   for (let i = Math.max(0, matrix.length - 40); i < matrix.length; i++) {
     const row = matrix[i].map(c => String(c).trim()).filter(Boolean)
     if (!row.length) continue
     const joined = row.join(' ')
-    // look for “deadline”, “due”, or date-like strings with course words
     const hasKeyword = /deadline|due\s*date|due\s*by/i.test(joined)
     const mentionsCourse = OOM_COURSES.some(c => c.patterns.some(p => p.test(joined)))
-    const looksLikeDate = /\b(20\d{2}|19\d{2})[-/\.](0?[1-9]|1[0-2])[-/\.](0?[1-9]|[12]\d|3[01])\b/i.test(joined) || /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.test(joined)
+    const looksLikeDate =
+      /\b(20\d{2}|19\d{2})[-/\.](0?[1-9]|1[0-2])[-/\.](0?[1-9]|[12]\d|3[01])\b/i.test(joined) ||
+      /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.test(joined)
     if (hasKeyword || (mentionsCourse && looksLikeDate)) lines.push(joined)
   }
-  // de-dup close duplicates
   const uniq: string[] = []
   const seen = new Set<string>()
   for (const s of lines) {
@@ -182,13 +164,13 @@ type Row = Record<string, string>
 
 export default function ResponsiveOOMViewer(props: {
   csvUrl: string
-  /** If true, apply OOM column preset + deadline footer. Use for OOM only. */
+  /** Use for OOM only: special column order + deadline footer */
   oomPreset?: boolean
-  /** For non-OOM views (e.g., TQE): pass a whitelist to keep only these columns (order preserved). */
+  /** For non-OOM views (e.g., TQE): keep only these columns (order preserved). */
   columns?: string[]
 }) {
   const { csvUrl, columns, oomPreset } = props
-  const [hoverCol, setHoverCol] = useState<number | null>(null)
+
   const [rows, setRows] = useState<Row[]>([])
   const [headers, setHeaders] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -196,7 +178,7 @@ export default function ResponsiveOOMViewer(props: {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [pageSize, setPageSize] = useState<number | 'all'>('all') // default = ALL
+  const [pageSize, setPageSize] = useState<number | 'all'>('all')
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
   const [deadlines, setDeadlines] = useState<string[]>([])
@@ -215,18 +197,15 @@ export default function ResponsiveOOMViewer(props: {
         const { headers: hdr, dataStart } = deriveHeaders(matrix)
         const body = matrix.slice(dataStart)
 
-        // Build row objects using inferred headers
         const data: Row[] = body.map(r => {
           const o: Row = {}
           for (let i = 0; i < hdr.length; i++) o[hdr[i]] = String(r[i] ?? '')
           return o
         })
 
-        // Optionally collect deadlines (for OOM only)
         const dl = oomPreset ? extractDeadlines(matrix) : []
         setDeadlines(dl)
 
-        // Drop columns that are entirely empty
         const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
         let finalHeaders = hdr.filter((_, i) => keepMask[i])
         let finalRows = data.map(r => {
@@ -236,7 +215,6 @@ export default function ResponsiveOOMViewer(props: {
         })
 
         if (oomPreset) {
-          // Build OOM order based on actual headers
           const ordered = buildOomHeaderOrder(finalHeaders)
           if (ordered.length) {
             finalHeaders = ordered
@@ -247,7 +225,6 @@ export default function ResponsiveOOMViewer(props: {
             })
           }
         } else if (columns && columns.length) {
-          // Generic whitelist (TQE)
           const map = new Map(finalHeaders.map(h => [norm(h), h]))
           const ordered: string[] = []
           for (const wanted of columns) {
@@ -278,46 +255,39 @@ export default function ResponsiveOOMViewer(props: {
     load()
   }, [csvUrl, columns, oomPreset])
 
-const filtered = useMemo(() => {
-  if (!rows.length) return rows
+  /* ---------- Filtering (unlimited comma-separated names) ---------- */
+  const filtered = useMemo(() => {
+    if (!rows.length) return rows
 
-  // Visible headers (respect column hide toggles)
-  const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
-  const nameHeader =
-    visibleHeaders.find(h => /screen\s*_?\s*name/i.test(h)) ?? visibleHeaders[0]
+    const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+    const nameHeader = visibleHeaders.find(h => /screen\s*_?\s*name/i.test(h)) ?? visibleHeaders[0]
 
-  const raw = query.trim()
-  if (!raw) return rows
+    const raw = query.trim()
+    if (!raw) return rows
 
-  // Split on commas for multi-name compare (no limit)
-  const terms = raw
-    .split(',')
-    .map(t => t.trim())
-    .filter(Boolean)
-    .map(t => t.toLowerCase())
+    const terms = raw
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean)
+      .map(t => t.toLowerCase())
 
-  if (terms.length >= 2) {
-    // Multi-name mode: match ANY term in the screen_name column (fallback: any visible column)
-    return rows.filter(r => {
-      const hayName = String(r[nameHeader] ?? '').toLowerCase()
-      if (nameHeader) {
-        return terms.some(t => hayName.includes(t))
-      }
-      // fallback if no name header
-      return terms.some(t =>
-        visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
-      )
-    })
-  }
+    if (terms.length >= 2) {
+      return rows.filter(r => {
+        const hayName = String(r[nameHeader] ?? '').toLowerCase()
+        if (nameHeader) return terms.some(t => hayName.includes(t))
+        return terms.some(t =>
+          visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
+        )
+      })
+    }
 
-  // Single-term mode: search across all visible columns
-  const t = terms[0]
-  return rows.filter(r =>
-    visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
-  )
-}, [rows, query, headers, hiddenCols])
+    const t = terms[0]
+    return rows.filter(r =>
+      visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
+    )
+  }, [rows, query, headers, hiddenCols])
 
-
+  /* ---------- Sorting & paging ---------- */
   const sorted = useMemo(() => {
     if (!sortKey) return filtered
     const copy = [...filtered]
@@ -364,13 +334,28 @@ const filtered = useMemo(() => {
       {error ? <div className="text-red-600 text-sm">{error}</div> : null}
       {loading ? <div className="text-slate-600 text-sm">Loading…</div> : null}
 
+      {/* Controls: search (with clear ×) + page size */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
-        <input
-           className="border rounded-lg px-3 py-2 w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]"
-	   placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
-	   value={query}
-          onChange={e => { setQuery(e.target.value); setPage(1) }}
-        />
+        <div className="relative w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
+          <input
+            className="border rounded-lg px-3 pr-10 py-2 w-full"
+            placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
+            value={query}
+            onChange={e => { setQuery(e.target.value); setPage(1) }}
+            aria-label="Search players or values"
+          />
+          {query ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => { setQuery(''); setPage(1) }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <span className="text-lg leading-none">&times;</span>
+            </button>
+          ) : null}
+        </div>
+
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500">Rows per page</span>
           <select
@@ -380,79 +365,94 @@ const filtered = useMemo(() => {
               const v = e.target.value === 'all' ? 'all' : Number(e.target.value)
               setPageSize(v); setPage(1)
             }}
+            aria-label="Rows per page"
           >
             <option value="all">All</option>
             {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
       </div>
-{/* Desktop table */}
-<div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
-  <table className="min-w-full text-sm">
-    <thead className="bg-slate-100 sticky top-0">
-      <tr>
-        {headers.filter(h => !hiddenCols.has(h)).map(h => (
-          <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">
-            <button
-              onClick={() => {
-                if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-                else { setSortKey(h); setSortDir('asc') }
-              }}
-              className="inline-flex items-center gap-1"
-            >
-              {h}
-              {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
-            </button>
-          </th>
-        ))}
-      </tr>
-    </thead>
-<tbody>
-  {(() => {
-    const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
-    // Prefer explicit screen_name; otherwise fall back to first visible column
-    const nameColIdx = Math.max(
-      0,
-      visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
-    )
 
-    return pageRows.map((r, rowIdx) => (
-      <tr
-        key={rowIdx}
-        className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors"
-      >
-        {visibleHeaders.map((h, colIdx) => {
-          const value = String(r[h] ?? '')
-          const isName = colIdx === nameColIdx
+      {/* Desktop table (sticky name col + row hover + ghost-bold) */}
+      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-100 sticky top-0 z-30">
+            <tr>
+              {headers.filter(h => !hiddenCols.has(h)).map((h, colIdx) => {
+                const visible = headers.filter(x => !hiddenCols.has(x))
+                const nameIdx = (() => {
+                  const i = visible.findIndex(x => /screen\s*_?\s*name/i.test(x))
+                  return i >= 0 ? i : 0
+                })()
+                const stickyClasses = colIdx === nameIdx
+                  ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200'
+                  : ''
+                return (
+                  <th key={h} className={`px-4 py-3 text-left font-semibold whitespace-nowrap ${stickyClasses}`}>
+                    <button
+                      onClick={() => {
+                        if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+                        else { setSortKey(h); setSortDir('asc') }
+                      }}
+                      className="inline-flex items-center gap-1"
+                    >
+                      {h}
+                      {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+                    </button>
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
 
-          return (
-            <td key={h} className="px-4 py-3 whitespace-nowrap">
-              {isName ? (
-                // Ghost-bold technique:
-                // 1) Invisible bold clone establishes width
-                // 2) Visible text sits on top and becomes bold on hover
-                <span className="inline-grid">
-                  <span className="font-semibold invisible">{value}</span>
-                  <span className="col-start-1 row-start-1 group-hover:font-semibold">
-                    {value}
-                  </span>
-                </span>
-              ) : (
-                value
-              )}
-            </td>
-          )
-        })}
-      </tr>
-    ))
-  })()}
-</tbody>
+          <tbody>
+            {(() => {
+              const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+              const nameColIdx = (() => {
+                const i = visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
+                return i >= 0 ? i : 0
+              })()
 
-     </table>
-</div>
+              return pageRows.map((r, rowIdx) => (
+                <tr
+                  key={rowIdx}
+                  className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors"
+                >
+                  {visibleHeaders.map((h, colIdx) => {
+                    const value = String(r[h] ?? '')
+                    const isName = colIdx === nameColIdx
+                    const rowBg = rowIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'
+                    const hoverBg = 'group-hover:bg-slate-100'
 
-      
-      {/* Mobile cards */}
+                    return (
+                      <td
+                        key={h}
+                        className={[
+                          'px-4 py-3 whitespace-nowrap',
+                          isName ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200` : ''
+                        ].join(' ')}
+                      >
+                        {isName ? (
+                          <span className="inline-grid">
+                            <span className="font-semibold invisible">{value}</span>
+                            <span className="col-start-1 row-start-1 group-hover:font-semibold">
+                              {value}
+                            </span>
+                          </span>
+                        ) : (
+                          value
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))
+            })()}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards (unchanged) */}
       <div className="md:hidden grid grid-cols-1 gap-3">
         {pageRows.map((r, idx) => (
           <div key={idx} className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4">
