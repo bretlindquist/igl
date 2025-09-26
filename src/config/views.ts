@@ -1,6 +1,3 @@
-// Map each view (OOM + TQEs) to a title and CSV URL.
-// Fill the env vars below in `.env.local` (see step 5).
-
 export type ViewId =
   | 'oom'
   | 'tqe-1'
@@ -11,9 +8,24 @@ export type ViewId =
   | 'tqe-6'
   | 'tqe-7';
 
-export const VIEWS: Record<ViewId, { title: string; csv: string }> = {
-  oom:   { title: 'OOM Table', csv: process.env.NEXT_PUBLIC_CSV_OOM   || '' },
-  'tqe-1': { title: 'TQE 1 — Mission Hills Norman (L/L)', csv: process.env.NEXT_PUBLIC_CSV_TQE1 || '' },
+type ViewDef = { title: string; csv: string; columns?: string[] }
+
+export const VIEWS: Record<ViewId, ViewDef> = {
+  oom:    { title: 'OOM Table', csv: process.env.NEXT_PUBLIC_CSV_OOM || '' },
+
+  'tqe-1': {
+    title: 'TQE 1 — Mission Hills Norman (L/L)',
+    csv: process.env.NEXT_PUBLIC_CSV_TQE1 || '',
+    columns: [
+      'screen_name',
+      'SUM of gross',
+      'SUM of absolute_net',
+      'SUM of Comp_score',
+      'Handi bonus',
+      'Final Points',
+    ],
+  },
+
   'tqe-2': { title: 'TQE 2 — Purunsol [Lake/Mountain] (R/R)', csv: process.env.NEXT_PUBLIC_CSV_TQE2 || '' },
   'tqe-3': { title: 'TQE 3 — St Andrews (L/L)', csv: process.env.NEXT_PUBLIC_CSV_TQE3 || '' },
   'tqe-4': { title: 'TQE 4 — Tani CC (R/R)', csv: process.env.NEXT_PUBLIC_CSV_TQE4 || '' },

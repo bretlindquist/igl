@@ -10,12 +10,8 @@ function parseCSV(csv: string): string[][] {
   while (i < csv.length) {
     const ch = csv[i]
     if (ch === '"') {
-      if (inQuotes && csv[i + 1] === '"') {
-        cur += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
+      if (inQuotes && csv[i + 1] === '"') { cur += '"'; i++ }
+      else { inQuotes = !inQuotes }
     } else if (ch === ',' && !inQuotes) {
       row.push(cur); cur = ''
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
@@ -30,17 +26,14 @@ function parseCSV(csv: string): string[][] {
   return rows.filter(r => r.some(c => String(c).trim().length))
 }
 
-/** Heuristics to pick/merge header rows (handles 2-row headers like "Course" + per-course names) */
+/** Detect/merge 2-row headers like ["Course", ...] + ["1. Mission...", ...] */
 function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: number } {
-  // skip leading blank rows
   let start = 0
   while (start < matrix.length && matrix[start].every(c => !String(c).trim())) start++
-
   if (start >= matrix.length) return { headers: [], dataStart: matrix.length }
 
   const r1 = matrix[start].map(c => String(c).trim())
   const r2 = (matrix[start + 1] || []).map(c => String(c).trim())
-
   const empties1 = r1.filter(h => !h).length
   const nonEmpty2 = r2.filter(h => h).length
   const r1HasCourse = r1.some(h => /course/i.test(h))
@@ -48,13 +41,10 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
   let headers = r1
   let dataStart = start + 1
 
-  // If first row is “group labels” (e.g., contains 'Course') and row 2 has real names → use row 2
   if (r1HasCourse && nonEmpty2 > 0) {
     headers = r2
     dataStart = start + 2
-  }
-  // Else if first row has many blanks and row 2 has data → merge r1 + r2 ("A — B"), else keep r1
-  else if (empties1 > Math.floor(r1.length * 0.3) && nonEmpty2 > 0) {
+  } else if (empties1 > Math.floor(r1.length * 0.3) && nonEmpty2 > 0) {
     const len = Math.max(r1.length, r2.length)
     headers = Array.from({ length: len }, (_, i) => {
       const a = r1[i] || ''
@@ -65,7 +55,6 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
     dataStart = start + 2
   }
 
-  // Replace empties with "Column N" and dedupe identical names
   headers = headers.map((h, i) => (h ? h : `Column ${i + 1}`))
   const seen = new Map<string, number>()
   headers = headers.map(h => {
@@ -86,9 +75,13 @@ function toCSV(rows: (string | number)[][]): string {
     .join('\n')
 }
 
+function norm(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').replace(/_/g, ' ').trim()
+}
+
 type Row = Record<string, string>
 
-export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
+export default function ResponsiveOOMViewer({ csvUrl, columns }: { csvUrl: string; columns?: string[] }) {
   const [rows, setRows] = useState<Row[]>([])
   const [headers, setHeaders] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -96,7 +89,7 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [pageSize, setPageSize] = useState<number | 'all'>('all') // default = ALL rows
+  const [pageSize, setPageSize] = useState<number | 'all'>('all') // default = ALL
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
 
@@ -113,26 +106,43 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
 
         const { headers: hdr, dataStart } = deriveHeaders(matrix)
         const body = matrix.slice(dataStart)
-        // Build rows with inferred headers; pad/truncate to header length
+
+        // Build row objects using inferred headers
         const data: Row[] = body.map(r => {
           const o: Row = {}
           for (let i = 0; i < hdr.length; i++) o[hdr[i]] = String(r[i] ?? '')
           return o
         })
 
-        // Optionally drop columns that are entirely empty
-        const keepMask = hdr.map((h, i) => data.some(r => String(r[h]).trim().length > 0))
-        const finalHeaders = hdr.filter((_, i) => keepMask[i])
-        const finalRows = data.map(r => {
+        // Drop columns that are entirely empty
+        const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
+        let finalHeaders = hdr.filter((_, i) => keepMask[i])
+        let finalRows = data.map(r => {
           const o: Row = {}
           finalHeaders.forEach(h => { o[h] = r[h] })
           return o
         })
 
+        // If a whitelist is provided, keep exactly those columns, in that order
+        if (columns && columns.length) {
+          const map = new Map(finalHeaders.map(h => [norm(h), h]))
+          const ordered: string[] = []
+          for (const wanted of columns) {
+            const match = map.get(norm(wanted))
+            if (match) ordered.push(match)
+          }
+          finalHeaders = ordered
+          finalRows = finalRows.map(r => {
+            const o: Row = {}
+            finalHeaders.forEach(h => { o[h] = r[h] })
+            return o
+          })
+        }
+
         setHeaders(finalHeaders)
         setRows(finalRows)
         setPage(1)
-        setPageSize('all') // ensure default is All after load
+        setPageSize('all')
       } catch (e) {
         if (e instanceof Error) setError(e.message)
         else setError('Failed to fetch CSV')
@@ -141,7 +151,8 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
       }
     }
     load()
-  }, [csvUrl])
+    // include columns in deps (stringify to keep it serializable)
+  }, [csvUrl, JSON.stringify(columns)])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return rows
@@ -173,7 +184,8 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
 
   function toggleCol(h: string) {
     const next = new Set(hiddenCols)
-    if (next.has(h)) next.delete(h); else next.add(h)
+    if (next.has(h)) next.delete(h)
+    else next.add(h)
     setHiddenCols(next)
   }
 
