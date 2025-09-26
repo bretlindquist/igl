@@ -366,8 +366,8 @@ const filtered = useMemo(() => {
 
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
         <input
-          className="border rounded-lg px-3 py-2 md:max-w-sm"
-           placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
+           className="border rounded-lg px-3 py-2 w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]"
+	   placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
 	   value={query}
           onChange={e => { setQuery(e.target.value); setPage(1) }}
         />
