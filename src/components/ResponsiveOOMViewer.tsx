@@ -278,11 +278,45 @@ export default function ResponsiveOOMViewer(props: {
     load()
   }, [csvUrl, columns, oomPreset])
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return rows
-    const q = query.toLowerCase()
-    return rows.filter(r => headers.some(h => String(r[h]).toLowerCase().includes(q)))
-  }, [rows, query, headers])
+const filtered = useMemo(() => {
+  if (!rows.length) return rows
+
+  // Visible headers (respect column hide toggles)
+  const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+  const nameHeader =
+    visibleHeaders.find(h => /screen\s*_?\s*name/i.test(h)) ?? visibleHeaders[0]
+
+  const raw = query.trim()
+  if (!raw) return rows
+
+  // Split on commas for multi-name compare (max 5 terms). If only one term, keep old behavior.
+  const terms = raw
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean)
+    .slice(0, 5)
+    .map(t => t.toLowerCase())
+
+  if (terms.length >= 2) {
+    // Multi-name mode: match ANY term in the screen_name column (fallback: any visible column)
+    return rows.filter(r => {
+      const hayName = String(r[nameHeader] ?? '').toLowerCase()
+      if (nameHeader) {
+        return terms.some(t => hayName.includes(t))
+      }
+      // fallback if no name header
+      return terms.some(t =>
+        visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
+      )
+    })
+  }
+
+  // Single-term mode: search across all visible columns (your original behavior)
+  const t = terms[0] // the only term
+  return rows.filter(r =>
+    visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
+  )
+}, [rows, query, headers, hiddenCols])
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered
@@ -333,8 +367,8 @@ export default function ResponsiveOOMViewer(props: {
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
         <input
           className="border rounded-lg px-3 py-2 md:max-w-sm"
-          placeholder="Search all columns…"
-          value={query}
+           placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
+	   value={query}
           onChange={e => { setQuery(e.target.value); setPage(1) }}
         />
         <div className="flex items-center gap-2">
