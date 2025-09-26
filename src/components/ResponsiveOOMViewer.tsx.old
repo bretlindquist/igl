@@ -1,14 +1,17 @@
 'use client'
 import React, { useEffect, useMemo, useState } from 'react'
 
-/* ---------- CSV helpers ---------- */
 function parseCSV(csv: string): string[][] {
   const rows: string[][] = []
-  let i = 0, cur = '', inQuotes = false, row: string[] = []
+  let i = 0
+  let cur = ''
+  let inQuotes = false
+  let row: string[] = []
   while (i < csv.length) {
     const ch = csv[i]
     if (ch === '"') {
-      if (inQuotes && csv[i + 1] === '"') { cur += '"'; i++ } else { inQuotes = !inQuotes }
+      if (inQuotes && csv[i + 1] === '"') { cur += '"'; i++ }
+      else { inQuotes = !inQuotes }
     } else if (ch === ',' && !inQuotes) {
       row.push(cur); cur = ''
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
@@ -23,49 +26,23 @@ function parseCSV(csv: string): string[][] {
   return rows.filter(r => r.some(c => String(c).trim().length))
 }
 
-/** Merge 2-row headers: row1 has group labels (e.g., "Course"), row2 has actual names */
+/** Handle sheets where the first row is a course title and the second row is the real header */
 function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: number } {
   let start = 0
+  // skip blank rows
   while (start < matrix.length && matrix[start].every(c => !String(c).trim())) start++
   if (start >= matrix.length) return { headers: [], dataStart: matrix.length }
 
-  // Skip a single-cell title row like "1. Mission Hills Norman,,,,"
-  const first = matrix[start].map(c => String(c).trim())
-  if (first.filter(Boolean).length === 1 && (matrix[start + 1] ?? []).some(c => String(c).trim())) {
+  const firstRow = matrix[start].map(c => String(c).trim())
+  const nonEmptyCount = firstRow.filter(c => c).length
+
+  // If the first row looks like "1. Mission Hills Norman, , , , ..." → skip it
+  if (nonEmptyCount === 1) {
     start++
   }
 
-  const r1 = (matrix[start] || []).map(c => String(c).trim())
-  const r2 = (matrix[start + 1] || []).map(c => String(c).trim())
-
-  const r1HasGroupWords = r1.some(h => /course|grand\s*total|appr|rank/i.test(h))
-  const r2NonEmpty = r2.filter(Boolean).length
-  let headers: string[] = []
-  let dataStart = start + 1
-
-  if (r1HasGroupWords && r2NonEmpty > 0) {
-    const len = Math.max(r1.length, r2.length)
-    headers = Array.from({ length: len }, (_, i) => r2[i] || r1[i] || `Column ${i + 1}`)
-    dataStart = start + 2
-  } else if (r1.filter(Boolean).length < r2NonEmpty) {
-    const len = Math.max(r1.length, r2.length)
-    headers = Array.from({ length: len }, (_, i) => r2[i] || r1[i] || `Column ${i + 1}`)
-    dataStart = start + 2
-  } else {
-    headers = r1.map((c, i) => c || `Column ${i + 1}`)
-    dataStart = start + 1
-  }
-
-  // Deduplicate identical names
-  const seen = new Map<string, number>()
-  headers = headers.map((h, i) => {
-    const key = h || `Column ${i + 1}`
-    const n = (seen.get(key) || 0) + 1
-    seen.set(key, n)
-    return n > 1 ? `${key} (${n})` : key
-  })
-
-  return { headers, dataStart }
+  const headers = matrix[start].map((c, i) => String(c).trim() || `Column ${i + 1}`)
+  return { headers, dataStart: start + 1 }
 }
 
 function toCSV(rows: (string | number)[][]): string {
@@ -81,98 +58,9 @@ function norm(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').replace(/_/g, ' ').trim()
 }
 
-/* ---------- OOM preset helpers ---------- */
-/** Courses in intended order with flexible matchers (covers minor spelling/punctuation differences). */
-const OOM_COURSES: { id: string; patterns: RegExp[]; display: string }[] = [
-  { id: 'tqe1', patterns: [/mission\s*hills\s*norman/i], display: 'Course 1 (TQE1) – Mission Hills Norman' },
-  { id: 'tqe2', patterns: [/purunsol/i, /purun\s*sol/i], display: 'Course 2 (TQE2) – Purunsol' },
-  { id: 'tqe3', patterns: [/st\.?\s*andrews/i], display: 'Course 3 (TQE3) – St Andrews' },
-  { id: 'tqe4', patterns: [/tani\s*cc/i], display: 'Course 4 (TQE4) – Tani CC' },
-  { id: 'tqe5', patterns: [/ariji\s*cc/i], display: 'Course 5 (TQE5) – Ariji CC' },
-  { id: 'tqe6', patterns: [/soph?ia\s*green/i, /sohpia\s*green/i], display: 'Course 6 (TQE6) – Sophia Green' },
-  { id: 'tqe7', patterns: [/phoenix/i], display: 'Course 7 (TQE7) – Phoenix Resort' },
-]
-
-/** Non-course summary columns we want for OOM (flex match). */
-const OOM_SUMMARY_LABELS = [
-  { key: 'grandTotal', patterns: [/grand\s*total/i] },
-  { key: 'appr', patterns: [/av\.?\s*points?\s*per\s*round/i, /appr/i] },
-  { key: 'apprRank', patterns: [/rank.*appr/i, /rank\s*based\s*on\s*appr/i] },
-]
-
-/** From actual headers, pick the first header that matches any pattern. */
-function pickHeader(headers: string[], patterns: RegExp[]): string | null {
-  for (const p of patterns) {
-    const hit = headers.find(h => p.test(h))
-    if (hit) return hit
-  }
-  return null
-}
-
-/** Given actual headers, synthesize the OOM header order you requested. */
-function buildOomHeaderOrder(headers: string[]): string[] {
-  const out: string[] = []
-  // 1) Screen name (various ways it might appear)
-  const screenName =
-    pickHeader(headers, [/^screen\s*_?\s*name$/i, /^screen\s*name$/i, /^nickname$/i, /^name$/i]) ??
-    'screen_name' // fallback if exact exists
-  if (headers.includes(screenName)) out.push(screenName)
-
-  // 2) Courses 1..7 in intended order
-  for (const c of OOM_COURSES) {
-    const h = pickHeader(headers, c.patterns)
-    if (h) out.push(h)
-  }
-
-  // 3) Summary columns
-  for (const s of OOM_SUMMARY_LABELS) {
-    const h = pickHeader(headers, s.patterns)
-    if (h) out.push(h)
-  }
-
-  // 4) Duplicate screen name at end for legibility (if we found it)
-  if (headers.includes(screenName)) out.push(screenName)
-
-  // Ensure uniqueness, preserve first occurrence
-  const seen = new Set<string>()
-  return out.filter(h => !seen.has(h) && seen.add(h))
-}
-
-/** Pull "deadline" notes from the bottom misc rows. Highly tolerant matcher. */
-function extractDeadlines(matrix: string[][]): string[] {
-  const lines: string[] = []
-  for (let i = Math.max(0, matrix.length - 40); i < matrix.length; i++) {
-    const row = matrix[i].map(c => String(c).trim()).filter(Boolean)
-    if (!row.length) continue
-    const joined = row.join(' ')
-    // look for “deadline”, “due”, or date-like strings with course words
-    const hasKeyword = /deadline|due\s*date|due\s*by/i.test(joined)
-    const mentionsCourse = OOM_COURSES.some(c => c.patterns.some(p => p.test(joined)))
-    const looksLikeDate = /\b(20\d{2}|19\d{2})[-/\.](0?[1-9]|1[0-2])[-/\.](0?[1-9]|[12]\d|3[01])\b/i.test(joined) || /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.test(joined)
-    if (hasKeyword || (mentionsCourse && looksLikeDate)) lines.push(joined)
-  }
-  // de-dup close duplicates
-  const uniq: string[] = []
-  const seen = new Set<string>()
-  for (const s of lines) {
-    const k = s.toLowerCase().replace(/\s+/g, ' ').trim()
-    if (!seen.has(k)) { seen.add(k); uniq.push(s) }
-  }
-  return uniq
-}
-
-/* ---------- Component ---------- */
 type Row = Record<string, string>
 
-export default function ResponsiveOOMViewer(props: {
-  csvUrl: string
-  /** If true, apply OOM column preset + deadline footer. Use for OOM only. */
-  oomPreset?: boolean
-  /** For non-OOM views (e.g., TQE): pass a whitelist to keep only these columns (order preserved). */
-  columns?: string[]
-}) {
-  const { csvUrl, columns, oomPreset } = props
-
+export default function ResponsiveOOMViewer({ csvUrl, columns }: { csvUrl: string; columns?: string[] }) {
   const [rows, setRows] = useState<Row[]>([])
   const [headers, setHeaders] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -183,15 +71,18 @@ export default function ResponsiveOOMViewer(props: {
   const [pageSize, setPageSize] = useState<number | 'all'>('all') // default = ALL
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
-  const [deadlines, setDeadlines] = useState<string[]>([])
-
-  useEffect(() => {
+  const columnsKey = useMemo(() => {
+    if (!Array.isArray(columns)) return ''
+    return columns.map(c => c.toLowerCase().replace(/\s+/g, ' ').trim()).join('|')
+  }, [columns])
+ 
+ useEffect(() => {
     async function load() {
       if (!csvUrl) { setError('Missing CSV URL for this view'); return }
       setLoading(true); setError('')
       try {
         const res = await fetch(csvUrl)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const matrix = parseCSV(text)
         if (!matrix.length) return
@@ -206,10 +97,6 @@ export default function ResponsiveOOMViewer(props: {
           return o
         })
 
-        // Optionally collect deadlines (for OOM only)
-        const dl = oomPreset ? extractDeadlines(matrix) : []
-        setDeadlines(dl)
-
         // Drop columns that are entirely empty
         const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
         let finalHeaders = hdr.filter((_, i) => keepMask[i])
@@ -219,33 +106,20 @@ export default function ResponsiveOOMViewer(props: {
           return o
         })
 
-        if (oomPreset) {
-          // Build OOM order based on actual headers
-          const ordered = buildOomHeaderOrder(finalHeaders)
-          if (ordered.length) {
-            finalHeaders = ordered
-            finalRows = finalRows.map(r => {
-              const o: Row = {}
-              finalHeaders.forEach(h => { o[h] = r[h] })
-              return o
-            })
-          }
-        } else if (columns && columns.length) {
-          // Generic whitelist (TQE)
+        // If a whitelist is provided, keep exactly those columns, in that order
+        if (columns && columns.length) {
           const map = new Map(finalHeaders.map(h => [norm(h), h]))
           const ordered: string[] = []
           for (const wanted of columns) {
             const match = map.get(norm(wanted))
             if (match) ordered.push(match)
           }
-          if (ordered.length) {
-            finalHeaders = ordered
-            finalRows = finalRows.map(r => {
-              const o: Row = {}
-              finalHeaders.forEach(h => { o[h] = r[h] })
-              return o
-            })
-          }
+          finalHeaders = ordered
+          finalRows = finalRows.map(r => {
+            const o: Row = {}
+            finalHeaders.forEach(h => { o[h] = r[h] })
+            return o
+          })
         }
 
         setHeaders(finalHeaders)
@@ -260,8 +134,9 @@ export default function ResponsiveOOMViewer(props: {
       }
     }
     load()
-  }, [csvUrl, columns, oomPreset])
-
+    // include columns in deps (stringify to keep it serializable)
+ }, [csvUrl, columns, columnsKey])
+  
   const filtered = useMemo(() => {
     if (!query.trim()) return rows
     const q = query.toLowerCase()
@@ -272,7 +147,8 @@ export default function ResponsiveOOMViewer(props: {
     if (!sortKey) return filtered
     const copy = [...filtered]
     copy.sort((a, b) => {
-      const A = a[sortKey]; const B = b[sortKey]
+      const A = a[sortKey]
+      const B = b[sortKey]
       const nA = parseFloat(String(A).replace(/[^0-9.-]/g, ''))
       const nB = parseFloat(String(B).replace(/[^0-9.-]/g, ''))
       const bothNums = !Number.isNaN(nA) && !Number.isNaN(nB)
@@ -412,16 +288,6 @@ export default function ResponsiveOOMViewer(props: {
             )}
             <button className="px-3 py-1 rounded-lg border" onClick={exportVisibleCSV}>Export</button>
           </div>
-        </div>
-      ) : null}
-
-      {/* Deadline notice (OOM only) */}
-      {oomPreset && deadlines.length > 0 ? (
-        <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
-          <div className="font-semibold mb-1">Deadlines</div>
-          <ul className="list-disc pl-5 space-y-1">
-            {deadlines.map((d, i) => <li key={i} className="text-sm">{d}</li>)}
-          </ul>
         </div>
       ) : null}
     </div>
