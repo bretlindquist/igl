@@ -26,44 +26,23 @@ function parseCSV(csv: string): string[][] {
   return rows.filter(r => r.some(c => String(c).trim().length))
 }
 
-/** Detect/merge 2-row headers like ["Course", ...] + ["1. Mission...", ...] */
+/** Handle sheets where the first row is a course title and the second row is the real header */
 function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: number } {
   let start = 0
+  // skip blank rows
   while (start < matrix.length && matrix[start].every(c => !String(c).trim())) start++
   if (start >= matrix.length) return { headers: [], dataStart: matrix.length }
 
-  const r1 = matrix[start].map(c => String(c).trim())
-  const r2 = (matrix[start + 1] || []).map(c => String(c).trim())
-  const empties1 = r1.filter(h => !h).length
-  const nonEmpty2 = r2.filter(h => h).length
-  const r1HasCourse = r1.some(h => /course/i.test(h))
+  const firstRow = matrix[start].map(c => String(c).trim())
+  const nonEmptyCount = firstRow.filter(c => c).length
 
-  let headers = r1
-  let dataStart = start + 1
-
-  if (r1HasCourse && nonEmpty2 > 0) {
-    headers = r2
-    dataStart = start + 2
-  } else if (empties1 > Math.floor(r1.length * 0.3) && nonEmpty2 > 0) {
-    const len = Math.max(r1.length, r2.length)
-    headers = Array.from({ length: len }, (_, i) => {
-      const a = r1[i] || ''
-      const b = r2[i] || ''
-      const merged = (a && b) ? `${a} — ${b}` : (a || b)
-      return merged.trim()
-    })
-    dataStart = start + 2
+  // If the first row looks like "1. Mission Hills Norman, , , , ..." → skip it
+  if (nonEmptyCount === 1) {
+    start++
   }
 
-  headers = headers.map((h, i) => (h ? h : `Column ${i + 1}`))
-  const seen = new Map<string, number>()
-  headers = headers.map(h => {
-    const n = (seen.get(h) || 0) + 1
-    seen.set(h, n)
-    return n > 1 ? `${h} (${n})` : h
-  })
-
-  return { headers, dataStart }
+  const headers = matrix[start].map((c, i) => String(c).trim() || `Column ${i + 1}`)
+  return { headers, dataStart: start + 1 }
 }
 
 function toCSV(rows: (string | number)[][]): string {
