@@ -373,37 +373,48 @@ export default function ResponsiveOOMViewer(props: {
         ))}
       </tr>
     </thead>
+<tbody>
+  {(() => {
+    const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+    // Prefer explicit screen_name; otherwise fall back to first visible column
+    const nameColIdx = Math.max(
+      0,
+      visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
+    )
 
-    <tbody>
-      {(() => {
-        const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
-        // Prefer the explicit screen_name column; otherwise fall back to first visible column
-        const nameColIdx =
-          Math.max(
-            0,
-            visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
+    return pageRows.map((r, rowIdx) => (
+      <tr
+        key={rowIdx}
+        className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors"
+      >
+        {visibleHeaders.map((h, colIdx) => {
+          const value = String(r[h] ?? '')
+          const isName = colIdx === nameColIdx
+
+          return (
+            <td key={h} className="px-4 py-3 whitespace-nowrap">
+              {isName ? (
+                // Ghost-bold technique:
+                // 1) Invisible bold clone establishes width
+                // 2) Visible text sits on top and becomes bold on hover
+                <span className="inline-grid">
+                  <span className="font-semibold invisible">{value}</span>
+                  <span className="col-start-1 row-start-1 group-hover:font-semibold">
+                    {value}
+                  </span>
+                </span>
+              ) : (
+                value
+              )}
+            </td>
           )
+        })}
+      </tr>
+    ))
+  })()}
+</tbody>
 
-        return pageRows.map((r, rowIdx) => (
-          <tr
-            key={rowIdx}
-            className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors"
-          >
-            {visibleHeaders.map((h, colIdx) => (
-              <td
-                key={h}
-                className={`px-4 py-3 whitespace-nowrap ${
-                  colIdx === nameColIdx ? 'group-hover:font-semibold' : ''
-                }`}
-              >
-                {String(r[h] ?? '')}
-              </td>
-            ))}
-          </tr>
-        ))
-      })()}
-    </tbody>
-  </table>
+     </table>
 </div>
 
       
