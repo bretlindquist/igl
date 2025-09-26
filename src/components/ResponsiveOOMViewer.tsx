@@ -17,48 +17,78 @@ function parseCSV(csv: string): string[][] {
         inQuotes = !inQuotes
       }
     } else if (ch === ',' && !inQuotes) {
-      row.push(cur)
-      cur = ''
+      row.push(cur); cur = ''
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
-      if (cur.length || row.length) {
-        row.push(cur)
-        rows.push(row)
-        row = []
-        cur = ''
-      }
+      if (cur.length || row.length) { row.push(cur); rows.push(row); row = []; cur = '' }
       if (ch === '\r' && csv[i + 1] === '\n') i++
     } else {
       cur += ch
     }
     i++
   }
-  if (cur.length || row.length) {
-    row.push(cur)
-    rows.push(row)
-  }
+  if (cur.length || row.length) { row.push(cur); rows.push(row) }
   return rows.filter(r => r.some(c => String(c).trim().length))
+}
+
+/** Heuristics to pick/merge header rows (handles 2-row headers like "Course" + per-course names) */
+function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: number } {
+  // skip leading blank rows
+  let start = 0
+  while (start < matrix.length && matrix[start].every(c => !String(c).trim())) start++
+
+  if (start >= matrix.length) return { headers: [], dataStart: matrix.length }
+
+  const r1 = matrix[start].map(c => String(c).trim())
+  const r2 = (matrix[start + 1] || []).map(c => String(c).trim())
+
+  const empties1 = r1.filter(h => !h).length
+  const nonEmpty2 = r2.filter(h => h).length
+  const r1HasCourse = r1.some(h => /course/i.test(h))
+
+  let headers = r1
+  let dataStart = start + 1
+
+  // If first row is “group labels” (e.g., contains 'Course') and row 2 has real names → use row 2
+  if (r1HasCourse && nonEmpty2 > 0) {
+    headers = r2
+    dataStart = start + 2
+  }
+  // Else if first row has many blanks and row 2 has data → merge r1 + r2 ("A — B"), else keep r1
+  else if (empties1 > Math.floor(r1.length * 0.3) && nonEmpty2 > 0) {
+    const len = Math.max(r1.length, r2.length)
+    headers = Array.from({ length: len }, (_, i) => {
+      const a = r1[i] || ''
+      const b = r2[i] || ''
+      const merged = (a && b) ? `${a} — ${b}` : (a || b)
+      return merged.trim()
+    })
+    dataStart = start + 2
+  }
+
+  // Replace empties with "Column N" and dedupe identical names
+  headers = headers.map((h, i) => (h ? h : `Column ${i + 1}`))
+  const seen = new Map<string, number>()
+  headers = headers.map(h => {
+    const n = (seen.get(h) || 0) + 1
+    seen.set(h, n)
+    return n > 1 ? `${h} (${n})` : h
+  })
+
+  return { headers, dataStart }
 }
 
 function toCSV(rows: (string | number)[][]): string {
   return rows
-    .map(r =>
-      r
-        .map(v => {
-          const s = String(v ?? '')
-          return s.includes(',') || s.includes('"') || s.includes('\n')
-            ? `"${s.replace(/"/g, '""')}"`
-            : s
-        })
-        .join(',')
-    )
+    .map(r => r.map(v => {
+      const s = String(v ?? '')
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+    }).join(','))
     .join('\n')
 }
 
 type Row = Record<string, string>
 
-export default function ResponsiveOOMViewer(props: { csvUrl: string }) {
-  const { csvUrl } = props
-
+export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
   const [rows, setRows] = useState<Row[]>([])
   const [headers, setHeaders] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -66,35 +96,43 @@ export default function ResponsiveOOMViewer(props: { csvUrl: string }) {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState<number | 'all'>('all') // default = ALL rows
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     async function load() {
-      if (!csvUrl) {
-        setError('Missing CSV URL for this view')
-        return
-      }
-      setLoading(true)
-      setError('')
+      if (!csvUrl) { setError('Missing CSV URL for this view'); return }
+      setLoading(true); setError('')
       try {
         const res = await fetch(csvUrl)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const matrix = parseCSV(text)
         if (!matrix.length) return
-        const hdr = matrix[0].map(h => h.trim())
-        const data: Row[] = matrix.slice(1).map(r => {
+
+        const { headers: hdr, dataStart } = deriveHeaders(matrix)
+        const body = matrix.slice(dataStart)
+        // Build rows with inferred headers; pad/truncate to header length
+        const data: Row[] = body.map(r => {
           const o: Row = {}
-          hdr.forEach((h, i) => {
-            o[h] = r[i] ?? ''
-          })
+          for (let i = 0; i < hdr.length; i++) o[hdr[i]] = String(r[i] ?? '')
           return o
         })
-        setHeaders(hdr)
-        setRows(data)
+
+        // Optionally drop columns that are entirely empty
+        const keepMask = hdr.map((h, i) => data.some(r => String(r[h]).trim().length > 0))
+        const finalHeaders = hdr.filter((_, i) => keepMask[i])
+        const finalRows = data.map(r => {
+          const o: Row = {}
+          finalHeaders.forEach(h => { o[h] = r[h] })
+          return o
+        })
+
+        setHeaders(finalHeaders)
+        setRows(finalRows)
         setPage(1)
+        setPageSize('all') // ensure default is All after load
       } catch (e) {
         if (e instanceof Error) setError(e.message)
         else setError('Failed to fetch CSV')
@@ -121,23 +159,21 @@ export default function ResponsiveOOMViewer(props: { csvUrl: string }) {
       const nB = parseFloat(String(B).replace(/[^0-9.-]/g, ''))
       const bothNums = !Number.isNaN(nA) && !Number.isNaN(nB)
       if (bothNums) return sortDir === 'asc' ? nA - nB : nB - nA
-      return sortDir === 'asc'
-        ? String(A).localeCompare(String(B))
-        : String(B).localeCompare(String(A))
+      return sortDir === 'asc' ? String(A).localeCompare(String(B)) : String(B).localeCompare(String(A))
     })
     return copy
   }, [filtered, sortKey, sortDir])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(sorted.length / pageSize))
   const pageRows = useMemo(() => {
+    if (pageSize === 'all') return sorted
     const start = (page - 1) * pageSize
     return sorted.slice(start, start + pageSize)
   }, [sorted, page, pageSize])
 
   function toggleCol(h: string) {
     const next = new Set(hiddenCols)
-    if (next.has(h)) next.delete(h)
-    else next.add(h)
+    if (next.has(h)) next.delete(h); else next.add(h)
     setHiddenCols(next)
   }
 
@@ -164,26 +200,20 @@ export default function ResponsiveOOMViewer(props: { csvUrl: string }) {
           className="border rounded-lg px-3 py-2 md:max-w-sm"
           placeholder="Search all columns…"
           value={query}
-          onChange={e => {
-            setQuery(e.target.value)
-            setPage(1)
-          }}
+          onChange={e => { setQuery(e.target.value); setPage(1) }}
         />
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500">Rows per page</span>
           <select
             className="border rounded-lg px-2 py-2"
-            value={String(pageSize)}
+            value={pageSize === 'all' ? 'all' : String(pageSize)}
             onChange={e => {
-              setPageSize(Number(e.target.value))
-              setPage(1)
+              const v = e.target.value === 'all' ? 'all' : Number(e.target.value)
+              setPageSize(v); setPage(1)
             }}
           >
-            {[10, 25, 50, 100].map(n => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
+            <option value="all">All</option>
+            {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
       </div>
@@ -193,38 +223,28 @@ export default function ResponsiveOOMViewer(props: { csvUrl: string }) {
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 sticky top-0">
             <tr>
-              {headers
-                .filter(h => !hiddenCols.has(h))
-                .map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">
-                    <button
-                      onClick={() => {
-                        if (sortKey === h) {
-                          setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-                        } else {
-                          setSortKey(h)
-                          setSortDir('asc')
-                        }
-                      }}
-                      className="inline-flex items-center gap-1"
-                    >
-                      {h}
-                      {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
-                    </button>
-                  </th>
-                ))}
+              {headers.filter(h => !hiddenCols.has(h)).map(h => (
+                <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">
+                  <button
+                    onClick={() => {
+                      if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+                      else { setSortKey(h); setSortDir('asc') }
+                    }}
+                    className="inline-flex items-center gap-1"
+                  >
+                    {h}
+                    {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {pageRows.map((r, idx) => (
               <tr key={idx} className="odd:bg-white even:bg-slate-50">
-                {headers
-                  .filter(h => !hiddenCols.has(h))
-                  .map(h => (
-                    <td key={h} className="px-4 py-3 whitespace-nowrap">
-                      {String(r[h] ?? '')}
-                    </td>
-                  ))}
+                {headers.filter(h => !hiddenCols.has(h)).map(h => (
+                  <td key={h} className="px-4 py-3 whitespace-nowrap">{String(r[h] ?? '')}</td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -236,14 +256,12 @@ export default function ResponsiveOOMViewer(props: { csvUrl: string }) {
         {pageRows.map((r, idx) => (
           <div key={idx} className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4">
             <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-              {headers
-                .filter(h => !hiddenCols.has(h))
-                .map(h => (
-                  <React.Fragment key={h}>
-                    <div className="text-xs uppercase tracking-wide text-slate-500">{h}</div>
-                    <div className="text-sm font-medium text-slate-900">{String(r[h] ?? '')}</div>
-                  </React.Fragment>
-                ))}
+              {headers.filter(h => !hiddenCols.has(h)).map(h => (
+                <React.Fragment key={h}>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">{h}</div>
+                  <div className="text-sm font-medium text-slate-900">{String(r[h] ?? '')}</div>
+                </React.Fragment>
+              ))}
             </div>
           </div>
         ))}
@@ -264,24 +282,16 @@ export default function ResponsiveOOMViewer(props: { csvUrl: string }) {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              className="px-3 py-1 rounded-lg border"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              Prev
-            </button>
-            <span className="text-sm text-slate-600">Page {page} / {totalPages}</span>
-            <button
-              className="px-3 py-1 rounded-lg border"
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-            >
-              Next
-            </button>
-            <button className="px-3 py-1 rounded-lg border" onClick={exportVisibleCSV}>
-              Export
-            </button>
+            {pageSize !== 'all' ? (
+              <>
+                <button className="px-3 py-1 rounded-lg border" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Prev</button>
+                <span className="text-sm text-slate-600">Page {page} / {totalPages}</span>
+                <button className="px-3 py-1 rounded-lg border" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</button>
+              </>
+            ) : (
+              <span className="text-sm text-slate-600">Showing all {sorted.length} rows</span>
+            )}
+            <button className="px-3 py-1 rounded-lg border" onClick={exportVisibleCSV}>Export</button>
           </div>
         </div>
       ) : null}
