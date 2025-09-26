@@ -96,6 +96,25 @@ function norm(s: string): string {
 }
 
 /* ---------- OOM preset helpers ---------- */
+
+/** ------- OOM deadlines (static) ------- */
+const OOM_DEADLINES: { iso: string; course: string }[] = [
+  { iso: '2025-09-28', course: 'Mission Hills – Norman' },
+  { iso: '2025-09-28', course: 'Purunsol' },
+  { iso: '2025-09-28', course: 'St. Andrews' },
+  { iso: '2025-10-12', course: 'Tani CC' },
+  { iso: '2025-10-26', course: 'Ariji CC' },
+  { iso: '2025-11-09', course: 'Sophia Green' },
+  { iso: '2025-11-23', course: 'Phoenix Resort' },
+]
+
+function formatKST(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z') // ensure no TZ drift
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Seoul'
+  }).format(d) + ' (KST)'
+}
+
 const OOM_COURSES: { id: string; patterns: RegExp[]; display: string }[] = [
   { id: 'tqe1', patterns: [/mission\s*hills\s*norman/i], display: 'Course 1 (TQE1) – Mission Hills Norman' },
   { id: 'tqe2', patterns: [/purunsol/i, /purun\s*sol/i], display: 'Course 2 (TQE2) – Purunsol' },
@@ -497,16 +516,27 @@ export default function ResponsiveOOMViewer(props: {
         </div>
       ) : null}
 
-      {/* Deadline notice (OOM only) */}
-      {oomPreset && deadlines.length > 0 ? (
-        <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
-          <div className="font-semibold mb-1">Deadlines</div>
-          <ul className="list-disc pl-5 space-y-1">
-            {deadlines.map((d, i) => <li key={i} className="text-sm">{d}</li>)}
-          </ul>
-        </div>
-      ) : null}
+{/* Deadline notice (OOM only, static list) */}
+{oomPreset ? (
+  <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+    <div className="flex items-center gap-3 mb-2">
+      <div className="h-8 w-8 rounded-full border border-neutral-300 grid place-items-center">
+        <span className="text-sm font-serif">⛳️</span>
+      </div>
+      <div className="font-serif text-lg tracking-tight">Entry Deadlines</div>
     </div>
+    <div className="text-neutral-500 text-sm mb-3">Please submit your scores by the dates below.</div>
+    <ul className="grid grid-cols-1 md:grid-cols-2 gap-y-1 gap-x-6">
+      {OOM_DEADLINES.map((d, i) => (
+        <li key={i} className="text-[0.95rem]">
+          {formatKST(d.iso)} — {d.course}
+        </li>
+      ))}
+    </ul>
+  </div>
+) : null}
+
+          </div>
   )
 }
 
