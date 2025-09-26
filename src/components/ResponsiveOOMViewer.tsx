@@ -71,8 +71,12 @@ export default function ResponsiveOOMViewer({ csvUrl, columns }: { csvUrl: strin
   const [pageSize, setPageSize] = useState<number | 'all'>('all') // default = ALL
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
-
-  useEffect(() => {
+  const columnsKey = useMemo(() => {
+    if (!Array.isArray(columns)) return ''
+    return columns.map(c => c.toLowerCase().replace(/\s+/g, ' ').trim()).join('|')
+  }, [columns])
+ 
+ useEffect(() => {
     async function load() {
       if (!csvUrl) { setError('Missing CSV URL for this view'); return }
       setLoading(true); setError('')
