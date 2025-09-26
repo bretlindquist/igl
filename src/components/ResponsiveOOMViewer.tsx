@@ -23,13 +23,13 @@ function parseCSV(csv: string): string[][] {
   return rows.filter(r => r.some(c => String(c).trim().length))
 }
 
-/** Merge 2-row headers: row1 has group labels (e.g., "Course"), row2 has actual names */
+/** Robust header inference: skips single-cell title rows, prefers real header row */
 function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: number } {
   let start = 0
   while (start < matrix.length && matrix[start].every(c => !String(c).trim())) start++
   if (start >= matrix.length) return { headers: [], dataStart: matrix.length }
 
-  // Skip a single-cell title row like "1. Mission Hills Norman,,,,"
+  // Skip a single-cell course-title row like "1. Mission Hills Norman,,,,"
   const first = matrix[start].map(c => String(c).trim())
   if (first.filter(Boolean).length === 1 && (matrix[start + 1] ?? []).some(c => String(c).trim())) {
     start++
@@ -38,35 +38,51 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
   const r1 = (matrix[start] || []).map(c => String(c).trim())
   const r2 = (matrix[start + 1] || []).map(c => String(c).trim())
 
-  const r1HasGroupWords = r1.some(h => /course|grand\s*total|appr|rank/i.test(h))
-  const r2NonEmpty = r2.filter(Boolean).length
-  let headers: string[] = []
-  let dataStart = start + 1
-
-  if (r1HasGroupWords && r2NonEmpty > 0) {
-    const len = Math.max(r1.length, r2.length)
-    headers = Array.from({ length: len }, (_, i) => r2[i] || r1[i] || `Column ${i + 1}`)
-    dataStart = start + 2
-  } else if (r1.filter(Boolean).length < r2NonEmpty) {
-    const len = Math.max(r1.length, r2.length)
-    headers = Array.from({ length: len }, (_, i) => r2[i] || r1[i] || `Column ${i + 1}`)
-    dataStart = start + 2
-  } else {
-    headers = r1.map((c, i) => c || `Column ${i + 1}`)
-    dataStart = start + 1
+  const HEADER_HINT = /(screen|name|course|total|points|rank|appr|bonus)/i
+  const hasHeaderHints = (row: string[]) => row.some(c => HEADER_HINT.test(c))
+  const alphaRatio = (row: string[]) => {
+    const cells = row.filter(Boolean)
+    if (!cells.length) return 0
+    const alpha = cells.filter(c => /[A-Za-z가-힣]/.test(c)).length
+    return alpha / cells.length
   }
 
-  // Deduplicate identical names
+  // Decide which row is the header
+  let headers: string[]
+  let dataStart: number
+  const r1LooksLikeHeader = hasHeaderHints(r1) || alphaRatio(r1) >= 0.4
+  const r2LooksLikeHeader = hasHeaderHints(r2) || alphaRatio(r2) >= 0.6
+
+  if (r1LooksLikeHeader && !r2LooksLikeHeader) {
+    headers = r1
+    dataStart = start + 1
+  } else if (!r1LooksLikeHeader && r2LooksLikeHeader) {
+    headers = r2
+    dataStart = start + 2
+  } else {
+    // tie-break: prefer r1 unless it's very sparse
+    const r1NonEmpty = r1.filter(Boolean).length
+    const r2NonEmpty = r2.filter(Boolean).length
+    if (r1NonEmpty >= Math.floor(0.6 * Math.max(r1.length, r2.length))) {
+      headers = r1
+      dataStart = start + 1
+    } else {
+      headers = r2NonEmpty ? r2 : r1
+      dataStart = r2NonEmpty ? start + 2 : start + 1
+    }
+  }
+
+  headers = headers.map((c, i) => c || `Column ${i + 1}`)
   const seen = new Map<string, number>()
-  headers = headers.map((h, i) => {
-    const key = h || `Column ${i + 1}`
-    const n = (seen.get(key) || 0) + 1
-    seen.set(key, n)
-    return n > 1 ? `${key} (${n})` : key
+  headers = headers.map(h => {
+    const n = (seen.get(h) || 0) + 1
+    seen.set(h, n)
+    return n > 1 ? `${h} (${n})` : h
   })
 
   return { headers, dataStart }
 }
+
 
 function toCSV(rows: (string | number)[][]): string {
   return rows
@@ -172,7 +188,7 @@ export default function ResponsiveOOMViewer(props: {
   columns?: string[]
 }) {
   const { csvUrl, columns, oomPreset } = props
-
+  const [hoverCol, setHoverCol] = useState<number | null>(null)
   const [rows, setRows] = useState<Row[]>([])
   const [headers, setHeaders] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -341,32 +357,50 @@ export default function ResponsiveOOMViewer(props: {
       <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 sticky top-0">
-            <tr>
-              {headers.filter(h => !hiddenCols.has(h)).map(h => (
-                <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">
-                  <button
-                    onClick={() => {
-                      if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-                      else { setSortKey(h); setSortDir('asc') }
-                    }}
-                    className="inline-flex items-center gap-1"
-                  >
-                    {h}
-                    {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.map((r, idx) => (
-              <tr key={idx} className="odd:bg-white even:bg-slate-50">
-                {headers.filter(h => !hiddenCols.has(h)).map(h => (
-                  <td key={h} className="px-4 py-3 whitespace-nowrap">{String(r[h] ?? '')}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
+  <tr>
+    {headers.filter(h => !hiddenCols.has(h)).map((h, colIdx) => (
+      <th
+        key={h}
+        onMouseEnter={() => setHoverCol(colIdx)}
+        onMouseLeave={() => setHoverCol(null)}
+        className={`px-4 py-3 text-left font-semibold whitespace-nowrap transition-colors ${
+          hoverCol === colIdx ? 'bg-slate-200/50' : ''
+        }`}
+      >
+        <button
+          onClick={() => {
+            if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+            else { setSortKey(h); setSortDir('asc') }
+          }}
+          className="inline-flex items-center gap-1"
+        >
+          {h}
+          {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+        </button>
+      </th>
+    ))}
+  </tr>
+</thead>
+
+<tbody>
+  {pageRows.map((r, rowIdx) => (
+    <tr key={rowIdx} className="odd:bg-white even:bg-slate-50">
+      {headers.filter(h => !hiddenCols.has(h)).map((h, colIdx) => (
+        <td
+          key={h}
+          onMouseEnter={() => setHoverCol(colIdx)}
+          onMouseLeave={() => setHoverCol(null)}
+          className={`px-4 py-3 whitespace-nowrap transition-colors ${
+            hoverCol === colIdx ? 'bg-slate-100/50' : ''
+          }`}
+        >
+          {String(r[h] ?? '')}
+        </td>
+      ))}
+    </tr>
+  ))}
+</tbody>
+
         </table>
       </div>
 
