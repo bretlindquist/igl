@@ -400,7 +400,7 @@ export default function ResponsiveOOMViewer(props: {
       </div>
 
       {/* Desktop table (sticky name col + row hover + ghost-bold) */}
-      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm
+      <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm
                 dark:border-slate-700">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 sticky top-0 z-30 dark:bg-slate-800">
@@ -418,14 +418,22 @@ export default function ResponsiveOOMViewer(props: {
             ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200 dark:bg-slate-800 dark:border-slate-700'
             : ''
         return (
-          <th
-            key={h}
-            className={`px-4 py-3 text-left font-semibold whitespace-nowrap ${stickyClasses}`}
-          >
-            …
-          </th>
-        )
-      })
+  <th
+    key={h}
+    className={`px-4 py-3 text-left font-semibold whitespace-normal break-words align-top ${stickyClasses}`}
+  >
+    <button
+      onClick={() => {
+        if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+        else { setSortKey(h); setSortDir('asc') }
+      }}
+      className="inline-flex items-start gap-1 text-left"
+    >
+      <span className="leading-snug">{h}</span>
+      {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+    </button>
+  </th>
+)      })
     })()}
   </tr>
 </thead>
@@ -482,7 +490,7 @@ export default function ResponsiveOOMViewer(props: {
       </div>
 
      {/* Mobile cards */}
-<div className="md:hidden grid grid-cols-1 gap-3">
+<div className="sm:hidden grid grid-cols-1 gap-3">
   {pageRows.map((r, idx) => (
     <div
       key={idx}
