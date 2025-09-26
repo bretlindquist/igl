@@ -352,58 +352,61 @@ export default function ResponsiveOOMViewer(props: {
           </select>
         </div>
       </div>
+{/* Desktop table */}
+<div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+  <table className="min-w-full text-sm">
+    <thead className="bg-slate-100 sticky top-0">
+      <tr>
+        {headers.filter(h => !hiddenCols.has(h)).map(h => (
+          <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">
+            <button
+              onClick={() => {
+                if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+                else { setSortKey(h); setSortDir('asc') }
+              }}
+              className="inline-flex items-center gap-1"
+            >
+              {h}
+              {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+            </button>
+          </th>
+        ))}
+      </tr>
+    </thead>
 
-      {/* Desktop table */}
-      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-100 sticky top-0">
-  <tr>
-    {headers.filter(h => !hiddenCols.has(h)).map((h, colIdx) => (
-      <th
-        key={h}
-        onMouseEnter={() => setHoverCol(colIdx)}
-        onMouseLeave={() => setHoverCol(null)}
-        className={`px-4 py-3 text-left font-semibold whitespace-nowrap transition-colors ${
-          hoverCol === colIdx ? 'bg-slate-200/50' : ''
-        }`}
-      >
-        <button
-          onClick={() => {
-            if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-            else { setSortKey(h); setSortDir('asc') }
-          }}
-          className="inline-flex items-center gap-1"
-        >
-          {h}
-          {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
-        </button>
-      </th>
-    ))}
-  </tr>
-</thead>
+    <tbody>
+      {(() => {
+        const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+        // Prefer the explicit screen_name column; otherwise fall back to first visible column
+        const nameColIdx =
+          Math.max(
+            0,
+            visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
+          )
 
-<tbody>
-  {pageRows.map((r, rowIdx) => (
-    <tr key={rowIdx} className="odd:bg-white even:bg-slate-50">
-      {headers.filter(h => !hiddenCols.has(h)).map((h, colIdx) => (
-        <td
-          key={h}
-          onMouseEnter={() => setHoverCol(colIdx)}
-          onMouseLeave={() => setHoverCol(null)}
-          className={`px-4 py-3 whitespace-nowrap transition-colors ${
-            hoverCol === colIdx ? 'bg-slate-100/50' : ''
-          }`}
-        >
-          {String(r[h] ?? '')}
-        </td>
-      ))}
-    </tr>
-  ))}
-</tbody>
+        return pageRows.map((r, rowIdx) => (
+          <tr
+            key={rowIdx}
+            className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors"
+          >
+            {visibleHeaders.map((h, colIdx) => (
+              <td
+                key={h}
+                className={`px-4 py-3 whitespace-nowrap ${
+                  colIdx === nameColIdx ? 'group-hover:font-semibold' : ''
+                }`}
+              >
+                {String(r[h] ?? '')}
+              </td>
+            ))}
+          </tr>
+        ))
+      })()}
+    </tbody>
+  </table>
+</div>
 
-        </table>
-      </div>
-
+      
       {/* Mobile cards */}
       <div className="md:hidden grid grid-cols-1 gap-3">
         {pageRows.map((r, idx) => (
