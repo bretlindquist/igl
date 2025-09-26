@@ -289,12 +289,11 @@ const filtered = useMemo(() => {
   const raw = query.trim()
   if (!raw) return rows
 
-  // Split on commas for multi-name compare (max 5 terms). If only one term, keep old behavior.
+  // Split on commas for multi-name compare (no limit)
   const terms = raw
     .split(',')
     .map(t => t.trim())
     .filter(Boolean)
-    .slice(0, 5)
     .map(t => t.toLowerCase())
 
   if (terms.length >= 2) {
@@ -311,12 +310,13 @@ const filtered = useMemo(() => {
     })
   }
 
-  // Single-term mode: search across all visible columns (your original behavior)
-  const t = terms[0] // the only term
+  // Single-term mode: search across all visible columns
+  const t = terms[0]
   return rows.filter(r =>
     visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
   )
 }, [rows, query, headers, hiddenCols])
+
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered
