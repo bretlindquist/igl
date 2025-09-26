@@ -7,12 +7,22 @@ function parseCSV(csv: string): string[][] {
   while (i < csv.length) {
     const ch = csv[i]
     if (ch === '"') {
-      if (inQuotes && csv[i+1] === '"') { cur += '"'; i++ } else { inQuotes = !inQuotes }
+      if (inQuotes && csv[i + 1] === '"') {
+        cur += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
     } else if (ch === ',' && !inQuotes) {
       row.push(cur); cur = ''
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
-      if (cur.length || row.length) { row.push(cur); rows.push(row); row = []; cur = '' }
-      if (ch === '\r' && csv[i+1] === '\n') i++
+      if (cur.length || row.length) {
+        row.push(cur)
+        rows.push(row)
+        row = []
+        cur = ''
+      }
+      if (ch === '\r' && csv[i + 1] === '\n') i++
     } else {
       cur += ch
     }
@@ -22,11 +32,17 @@ function parseCSV(csv: string): string[][] {
   return rows.filter(r => r.some(c => String(c).trim().length))
 }
 
-function toCSV(rows: (string|number)[][]) {
-  return rows.map(r => r.map(v => {
-    const s = String(v ?? '')
-    return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s
-  }).join(',')).join('\n')
+function toCSV(rows: (string | number)[][]): string {
+  return rows
+    .map(r =>
+      r.map(v => {
+        const s = String(v ?? '')
+        return s.includes(',') || s.includes('"') || s.includes('\n')
+          ? '"' + s.replace(/"/g, '""') + '"'
+          : s
+      }).join(',')
+    )
+    .join('\n')
 }
 
 type Row = Record<string, string>
@@ -38,15 +54,19 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState('')
-  const [sortDir, setSortDir] = useState<'asc'|'desc'>('asc')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [pageSize, setPageSize] = useState(25)
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     async function load() {
-      if (!csvUrl) { setError('Missing CSV URL for this view'); return }
-      setLoading(true); setError('')
+      if (!csvUrl) {
+        setError('Missing CSV URL for this view')
+        return
+      }
+      setLoading(true)
+      setError('')
       try {
         const res = await fetch(csvUrl)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -56,14 +76,18 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
         const hdr = matrix[0].map(h => h.trim())
         const data: Row[] = matrix.slice(1).map(r => {
           const o: Row = {}
-          hdr.forEach((h, i) => o[h] = r[i] ?? '')
+          hdr.forEach((h, i) => { o[h] = r[i] ?? '' })
           return o
         })
         setHeaders(hdr)
         setRows(data)
         setPage(1)
-      } catch (e: any) {
-        setError(e.message || 'Failed to fetch CSV')
+      } catch (e) {
+        if (e instanceof Error) {
+          setError(e.message)
+        } else {
+          setError('Failed to fetch CSV')
+        }
       } finally {
         setLoading(false)
       }
@@ -83,11 +107,13 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
     copy.sort((a, b) => {
       const A = a[sortKey]
       const B = b[sortKey]
-      const nA = parseFloat(String(A).replace(/[^0-9\.-]/g, ''))
-      const nB = parseFloat(String(B).replace(/[^0-9\.-]/g, ''))
+      const nA = parseFloat(String(A).replace(/[^0-9.-]/g, ''))
+      const nB = parseFloat(String(B).replace(/[^0-9.-]/g, ''))
       const bothNums = !Number.isNaN(nA) && !Number.isNaN(nB)
       if (bothNums) return sortDir === 'asc' ? nA - nB : nB - nA
-      return sortDir === 'asc' ? String(A).localeCompare(String(B)) : String(B).localeCompare(String(A))
+      return sortDir === 'asc'
+        ? String(A).localeCompare(String(B))
+        : String(B).localeCompare(String(A))
     })
     return copy
   }, [filtered, sortKey, sortDir])
@@ -100,7 +126,11 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
 
   function toggleCol(h: string) {
     const next = new Set(hiddenCols)
-    next.has(h) ? next.delete(h) : next.add(h)
+    if (next.has(h)) {
+      next.delete(h)
+    } else {
+      next.add(h)
+    }
     setHiddenCols(next)
   }
 
@@ -119,15 +149,24 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
 
   return (
     <div className="space-y-4">
-      {error && <div className="text-red-600 text-sm">{error}</div>}
-      {loading && <div className="text-slate-600 text-sm">Loading…</div>}
+      {error ? <div className="text-red-600 text-sm">{error}</div> : null}
+      {loading ? <div className="text-slate-600 text-sm">Loading…</div> : null}
 
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
-        <input className="border rounded-lg px-3 py-2 md:max-w-sm" placeholder="Search all columns…" value={query} onChange={e=>{setQuery(e.target.value); setPage(1)}} />
+        <input
+          className="border rounded-lg px-3 py-2 md:max-w-sm"
+          placeholder="Search all columns…"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setPage(1) }}
+        />
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500">Rows per page</span>
-          <select className="border rounded-lg px-2 py-2" value={String(pageSize)} onChange={e=>{setPageSize(Number(e.target.value)); setPage(1)}}>
-            {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
+          <select
+            className="border rounded-lg px-2 py-2"
+            value={String(pageSize)}
+            onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+          >
+            {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
       </div>
@@ -139,9 +178,18 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
             <tr>
               {headers.filter(h => !hiddenCols.has(h)).map(h => (
                 <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">
-                  <button onClick={()=>{ if (sortKey===h) setSortDir(sortDir==='asc'?'desc':'asc'); else { setSortKey(h); setSortDir('asc') } }} className="inline-flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      if (sortKey === h) {
+                        setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+                      } else {
+                        setSortKey(h); setSortDir('asc')
+                      }
+                    }}
+                    className="inline-flex items-center gap-1"
+                  >
                     {h}
-                    {sortKey===h && <span>{sortDir==='asc' ? '▲' : '▼'}</span>}
+                    {sortKey === h && <span>{sortDir === 'asc' ? '▲' : '▼'}</span>}
                   </button>
                 </th>
               ))}
@@ -175,19 +223,36 @@ export default function ResponsiveOOMViewer({ csvUrl }: { csvUrl: string }) {
         ))}
       </div>
 
-      {!!headers.length && (
+      {/* Column visibility & pagination */}
+      {headers.length > 0 && (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {headers.map(h => (
-              <button key={h} onClick={()=>toggleCol(h)} className={`px-3 py-1 rounded-full border ${hiddenCols.has(h) ? 'bg-slate-200' : 'bg-white'}`}>
+              <button
+                key={h}
+                onClick={() => toggleCol(h)}
+                className={`px-3 py-1 rounded-full border ${hiddenCols.has(h) ? 'bg-slate-200' : 'bg-white'}`}
+              >
                 {hiddenCols.has(h) ? `Show: ${h}` : `Hide: ${h}`}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1 rounded-lg border" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>Prev</button>
+            <button
+              className="px-3 py-1 rounded-lg border"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Prev
+            </button>
             <span className="text-sm text-slate-600">Page {page} / {totalPages}</span>
-            <button className="px-3 py-1 rounded-lg border" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}>Next</button>
+            <button
+              className="px-3 py-1 rounded-lg border"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+            </button>
             <button className="px-3 py-1 rounded-lg border" onClick={exportVisibleCSV}>Export</button>
           </div>
         </div>
