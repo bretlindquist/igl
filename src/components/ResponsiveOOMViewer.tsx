@@ -82,7 +82,7 @@ export default function ResponsiveOOMViewer({ csvUrl, columns }: { csvUrl: strin
       setLoading(true); setError('')
       try {
         const res = await fetch(csvUrl)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const matrix = parseCSV(text)
         if (!matrix.length) return
@@ -135,8 +135,8 @@ export default function ResponsiveOOMViewer({ csvUrl, columns }: { csvUrl: strin
     }
     load()
     // include columns in deps (stringify to keep it serializable)
-  }, [csvUrl, JSON.stringify(columns)])
-
+ }, [csvUrl, columns, columnsKey])
+  
   const filtered = useMemo(() => {
     if (!query.trim()) return rows
     const q = query.toLowerCase()
