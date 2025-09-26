@@ -355,9 +355,12 @@ export default function ResponsiveOOMViewer(props: {
 
       {/* Controls: search (with clear ×) + page size */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
-        <div className="relative w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
-          <input
-            className="border rounded-lg px-3 pr-10 py-2 w-full"
+	<div className="relative w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
+  	    <input
+   	      className="border rounded-lg px-3 pr-10 py-2 w-full
+        		 bg-white text-slate-900 border-slate-300 placeholder-slate-400
+               		 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:placeholder-slate-500
+                	 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"        
             placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
             value={query}
             onChange={e => { setQuery(e.target.value); setPage(1) }}
@@ -368,17 +371,21 @@ export default function ResponsiveOOMViewer(props: {
               type="button"
               aria-label="Clear search"
               onClick={() => { setQuery(''); setPage(1) }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
-            >
+              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7
+                 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100
+                 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800
+                 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
+              >
               <span className="text-lg leading-none">&times;</span>
             </button>
           ) : null}
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">Rows per page</span>
-          <select
-            className="border rounded-lg px-2 py-2"
+          <span className="text-sm text-slate-500 dark:text-slate-400">Rows per page</span>
+	  <select
+   	    className="border rounded-lg px-2 py-2 bg-white text-slate-900 border-slate-300
+                       dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
             value={pageSize === 'all' ? 'all' : String(pageSize)}
             onChange={e => {
               const v = e.target.value === 'all' ? 'all' : Number(e.target.value)
@@ -393,150 +400,207 @@ export default function ResponsiveOOMViewer(props: {
       </div>
 
       {/* Desktop table (sticky name col + row hover + ghost-bold) */}
-      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm
+                dark:border-slate-700">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-100 sticky top-0 z-30">
-            <tr>
-              {headers.filter(h => !hiddenCols.has(h)).map((h, colIdx) => {
-                const visible = headers.filter(x => !hiddenCols.has(x))
-                const nameIdx = (() => {
-                  const i = visible.findIndex(x => /screen\s*_?\s*name/i.test(x))
-                  return i >= 0 ? i : 0
-                })()
-                const stickyClasses = colIdx === nameIdx
-                  ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200'
-                  : ''
-                return (
-                  <th key={h} className={`px-4 py-3 text-left font-semibold whitespace-nowrap ${stickyClasses}`}>
-                    <button
-                      onClick={() => {
-                        if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-                        else { setSortKey(h); setSortDir('asc') }
-                      }}
-                      className="inline-flex items-center gap-1"
-                    >
-                      {h}
-                      {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
-                    </button>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
+           <thead className="bg-slate-100 sticky top-0 z-30 dark:bg-slate-800">
+  <tr>
+    {(() => {
+      const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+      const nameIdx = (() => {
+        const i = visibleHeaders.findIndex(x => /screen\s*_?\s*name/i.test(x))
+        return i >= 0 ? i : 0
+      })()
+
+      return visibleHeaders.map((h, colIdx) => {
+        const stickyClasses =
+          colIdx === nameIdx
+            ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200 dark:bg-slate-800 dark:border-slate-700'
+            : ''
+        return (
+          <th
+            key={h}
+            className={`px-4 py-3 text-left font-semibold whitespace-nowrap ${stickyClasses}`}
+          >
+            <button
+              onClick={() => {
+                if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+                else { setSortKey(h); setSortDir('asc') }
+              }}
+              className="inline-flex items-center gap-1"
+            >
+              {h}
+              {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+            </button>
+          </th>
+        )
+      })
+    })()}
+  </tr>
+</thead>
 
           <tbody>
-            {(() => {
-              const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
-              const nameColIdx = (() => {
-                const i = visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
-                return i >= 0 ? i : 0
-              })()
+  {(() => {
+    const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+    const nameColIdx = (() => {
+      const i = visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
+      return i >= 0 ? i : 0
+    })()
 
-              return pageRows.map((r, rowIdx) => (
-                <tr
-                  key={rowIdx}
-                  className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors"
-                >
-                  {visibleHeaders.map((h, colIdx) => {
-                    const value = String(r[h] ?? '')
-                    const isName = colIdx === nameColIdx
-                    const rowBg = rowIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'
-                    const hoverBg = 'group-hover:bg-slate-100'
-
-                    return (
-                      <td
-                        key={h}
-                        className={[
-                          'px-4 py-3 whitespace-nowrap',
-                          isName ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200` : ''
-                        ].join(' ')}
-                      >
-                        {isName ? (
-                          <span className="inline-grid">
-                            <span className="font-semibold invisible">{value}</span>
-                            <span className="col-start-1 row-start-1 group-hover:font-semibold">
-                              {value}
-                            </span>
-                          </span>
-                        ) : (
-                          value
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))
-            })()}
-          </tbody>
+    return pageRows.map((r, rowIdx) => (
+      <tr
+        key={rowIdx}
+        className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors
+                   dark:odd:bg-slate-900 dark:even:bg-slate-950 dark:hover:bg-slate-800"
+      >
+        {visibleHeaders.map((h, colIdx) => {
+          const value = String(r[h] ?? '')
+          const isName = colIdx === nameColIdx
+          const rowBg =
+            rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'
+          const hoverBg = 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
+          return (
+            <td
+              key={h}
+              className={[
+                'px-4 py-3 whitespace-nowrap',
+                isName
+                  ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200 dark:border-slate-700`
+                  : '',
+              ].join(' ')}
+            >
+              {isName ? (
+                <span className="inline-grid">
+                  {/* reserve width so bold-on-hover doesn't shift layout */}
+                  <span className="font-semibold invisible">{value}</span>
+                  <span className="col-start-1 row-start-1 group-hover:font-semibold">
+                    {value}
+                  </span>
+                </span>
+              ) : (
+                value
+              )}
+            </td>
+          )
+        })}
+      </tr>
+    ))
+  })()}
+</tbody>
         </table>
       </div>
 
-      {/* Mobile cards (unchanged) */}
-      <div className="md:hidden grid grid-cols-1 gap-3">
-        {pageRows.map((r, idx) => (
-          <div key={idx} className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4">
-            <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-              {headers.filter(h => !hiddenCols.has(h)).map(h => (
-                <React.Fragment key={h}>
-                  <div className="text-xs uppercase tracking-wide text-slate-500">{h}</div>
-                  <div className="text-sm font-medium text-slate-900">{String(r[h] ?? '')}</div>
-                </React.Fragment>
-              ))}
+     {/* Mobile cards */}
+<div className="md:hidden grid grid-cols-1 gap-3">
+  {pageRows.map((r, idx) => (
+    <div
+      key={idx}
+      className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4
+                 dark:border-slate-700 dark:bg-slate-900"
+    >
+      <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+        {headers.filter(h => !hiddenCols.has(h)).map(h => (
+          <React.Fragment key={h}>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {h}
             </div>
-          </div>
+            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+              {String(r[h] ?? '')}
+            </div>
+          </React.Fragment>
         ))}
       </div>
-
-      {/* Column visibility & pagination */}
-      {headers.length > 0 ? (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {headers.map(h => (
-              <button
-                key={h}
-                onClick={() => toggleCol(h)}
-                className={`px-3 py-1 rounded-full border ${hiddenCols.has(h) ? 'bg-slate-200' : 'bg-white'}`}
-              >
-                {hiddenCols.has(h) ? `Show: ${h}` : `Hide: ${h}`}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            {pageSize !== 'all' ? (
-              <>
-                <button className="px-3 py-1 rounded-lg border" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Prev</button>
-                <span className="text-sm text-slate-600">Page {page} / {totalPages}</span>
-                <button className="px-3 py-1 rounded-lg border" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</button>
-              </>
-            ) : (
-              <span className="text-sm text-slate-600">Showing all {sorted.length} rows</span>
-            )}
-            <button className="px-3 py-1 rounded-lg border" onClick={exportVisibleCSV}>Export</button>
-          </div>
-        </div>
-      ) : null}
-
-{/* Deadline notice (OOM only, static list) */}
-{oomPreset ? (
-  <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-    <div className="flex items-center gap-3 mb-2">
-      <div className="h-8 w-8 rounded-full border border-neutral-300 grid place-items-center">
-        <span className="text-sm font-serif">⛳️</span>
-      </div>
-      <div className="font-serif text-lg tracking-tight">Entry Deadlines</div>
     </div>
-    <div className="text-neutral-500 text-sm mb-3">Please submit your scores by the dates below.</div>
-    <ul className="grid grid-cols-1 md:grid-cols-2 gap-y-1 gap-x-6">
-      {OOM_DEADLINES.map((d, i) => (
-        <li key={i} className="text-[0.95rem]">
-          {formatKST(d.iso)} — {d.course}
-        </li>
+  ))}
+</div>
+
+{/* Column visibility & pagination */}
+{headers.length > 0 ? (
+  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div className="flex flex-wrap gap-2">
+      {headers.map(h => (
+        <button
+          key={h}
+          onClick={() => toggleCol(h)}
+          className={`px-3 py-1 rounded-full border ${
+            hiddenCols.has(h)
+              ? 'bg-slate-200 border-slate-300 dark:bg-slate-800 dark:border-slate-700'
+              : 'bg-white border-slate-300 dark:bg-slate-900 dark:border-slate-700'
+          }`}
+        >
+          {hiddenCols.has(h) ? `Show: ${h}` : `Hide: ${h}`}
+        </button>
       ))}
-    </ul>
+    </div>
+    <div className="flex items-center gap-2">
+      {pageSize !== 'all' ? (
+        <>
+          <button
+            className="px-3 py-1 rounded-lg border border-slate-300 bg-white
+                       dark:border-slate-700 dark:bg-slate-900"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Prev
+          </button>
+          <span className="text-sm text-slate-600 dark:text-slate-400">
+            Page {page} / {totalPages}
+          </span>
+          <button
+            className="px-3 py-1 rounded-lg border border-slate-300 bg-white
+                       dark:border-slate-700 dark:bg-slate-900"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Next
+          </button>
+        </>
+      ) : (
+        <span className="text-sm text-slate-600 dark:text-slate-400">
+          Showing all {sorted.length} rows
+        </span>
+      )}
+      <button
+        className="px-3 py-1 rounded-lg border border-slate-300 bg-white
+                   dark:border-slate-700 dark:bg-slate-900"
+        onClick={exportVisibleCSV}
+      >
+        Export
+      </button>
+    </div>
   </div>
 ) : null}
 
+      {/* Deadline notice (OOM only, static list) */}
+      {oomPreset ? (
+        <div
+          className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm
+                     dark:border-slate-700 dark:bg-slate-900"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className="h-8 w-8 rounded-full border border-neutral-300 grid place-items-center
+                         dark:border-slate-700"
+            >
+              <span className="text-sm font-serif">⛳️</span>
+            </div>
+            <div className="font-serif text-lg tracking-tight">Entry Deadlines</div>
           </div>
+          <div className="text-neutral-500 dark:text-slate-400 text-sm mb-3">
+            Please submit your scores by the dates below.
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-y-1 gap-x-6">
+            {OOM_DEADLINES.map((d, i) => (
+              <li key={i} className="text-[0.95rem]">
+                {formatKST(d.iso)} — {d.course}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* end .space-y-4 wrapper */}
+    </div>
   )
 }
-
+ 
