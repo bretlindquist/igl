@@ -119,6 +119,30 @@ function toCSV(rows: (string | number)[][]): string {
 function norm(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').replace(/_/g, ' ').trim()
 }
+function isAllZeroOrBlank(row: Record<string, string>, headers: string[]): boolean {
+  // Treat first "name-like" column as label; evaluate the rest
+  const nameIdx = headers.findIndex(h => /screen\s*_?\s*name/i.test(h));
+  const skipHeader = nameIdx >= 0 ? headers[nameIdx] : headers[0];
+
+  let anyMeaningful = false;
+  for (const h of headers) {
+    if (h === skipHeader) continue;
+    const v = String(row[h] ?? '').trim();
+    if (!v) continue; // blank -> ignore for "any meaningful"
+    // normalize numeric-ish values
+    const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
+    if (!Number.isNaN(n)) {
+      if (n !== 0) return false; // has a non-zero number => keep row
+      // numeric zero: do not mark as meaningful
+    } else {
+      // non-numeric but non-empty (e.g., text) => meaningful
+      anyMeaningful = true;
+    }
+  }
+  // if any non-numeric text existed, keep; otherwise if everything was 0/blank, drop
+  return !anyMeaningful;
+}
+
 
 /* ---------- OOM preset helpers ---------- */
 
@@ -252,8 +276,9 @@ export default function ResponsiveOOMViewer(props: {
 
         const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
         let finalHeaders = hdr.filter((_, i) => keepMask[i])
-        let finalRows = data.map(r => {
-          const o: Row = {}
+        // Drop trailing garbage rows that are all zeros/blanks across data columns
+	finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders));
+	const o: Row = {}
           finalHeaders.forEach(h => { o[h] = r[h] })
           return o
         })
@@ -262,8 +287,9 @@ export default function ResponsiveOOMViewer(props: {
           const ordered = buildOomHeaderOrder(finalHeaders)
           if (ordered.length) {
             finalHeaders = ordered
-            finalRows = finalRows.map(r => {
-              const o: Row = {}
+              // Drop trailing garbage rows that are all zeros/blanks across data columns
+		finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders));
+		const o: Row = {}
               finalHeaders.forEach(h => { o[h] = r[h] })
               return o
             })

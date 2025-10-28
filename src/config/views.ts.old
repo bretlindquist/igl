@@ -6,12 +6,11 @@ export type ViewId =
   | 'tqe-4'
   | 'tqe-5'
   | 'tqe-6'
-  | 'tqe-7'
-  | 'eclectic';
+  | 'tqe-7';
 
-type ViewDef = { title: string; csv: string; columns?: string[] };
+type ViewDef = { title: string; csv: string; columns?: string[] }
 
-/** Canonical TQE column order for consistency across all tournaments */
+/** One canonical TQE column set (order preserved for all TQEs) */
 export const TQE_COLUMNS: string[] = [
   'screen_name',
   'SUM of gross',
@@ -22,13 +21,10 @@ export const TQE_COLUMNS: string[] = [
 ];
 
 export const VIEWS: Record<ViewId, ViewDef> = {
-  // ---------------------- OOM ----------------------
-  oom: {
-    title: 'OOM Table',
-    csv: process.env.NEXT_PUBLIC_CSV_OOM || '',
-  },
+  // OOM: no whitelist → show everything (or add its own list if you want)
+  oom: { title: 'OOM Table', csv: process.env.NEXT_PUBLIC_CSV_OOM || '' },
 
-  // ---------------------- TQE SERIES ----------------------
+  // All TQEs: share the same columns
   'tqe-1': {
     title: 'TQE 1 — Mission Hills Norman (L/L)',
     csv: process.env.NEXT_PUBLIC_CSV_TQE1 || '',
@@ -63,13 +59,6 @@ export const VIEWS: Record<ViewId, ViewDef> = {
     title: 'TQE 7 — Phoenix Resort [Phoenix] (L/L)',
     csv: process.env.NEXT_PUBLIC_CSV_TQE7 || '',
     columns: TQE_COLUMNS,
-  },
-
-  // ---------------------- ECLECTIC LEADERBOARD ----------------------
-  eclectic: {
-    title: 'Eclectic Leaderboard',
-    csv: process.env.NEXT_PUBLIC_CSV_ECLECTIC || '',
-    // no column restriction — show all columns by default
   },
 };
 
