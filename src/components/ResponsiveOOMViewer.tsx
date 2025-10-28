@@ -232,7 +232,7 @@ export default function ResponsiveOOMViewer(props: {
       if (!csvUrl) { setError('Missing CSV URL for this view'); return }
       setLoading(true); setError('')
       try {
-	const res = await fetch(toProxiedCsvUrl(csvUrl), { cache: 'no-store' }))
+	const res = await fetch(toProxiedCsvUrl(csvUrl), { cache: 'no-store' })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const matrix = parseCSV(text)
