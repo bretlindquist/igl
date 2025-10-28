@@ -224,49 +224,55 @@ export default function ResponsiveOOMViewer(props: {
         })
 
         // Remove columns that are completely empty across data
-        const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
-        let finalHeaders = hdr.filter((_, i) => keepMask[i])
-        let finalRows = data.map(r => {
-          const o: Row = {}
-          finalHeaders.forEach(h => { o[h] = r[h] })
-          return o
-        })
+        // Remove columns that are entirely empty across data
+const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
+let finalHeaders = hdr.filter((_, i) => keepMask[i])
 
-        // Preferred order for OOM
-        if (oomPreset) {
-          const ordered = buildOomHeaderOrder(finalHeaders)
-          if (ordered.length) {
-            finalHeaders = ordered
-            finalRows = finalRows.map(r => {
-              const o: Row = {}
-              finalHeaders.forEach(h => { o[h] = r[h] })
-              return o
-            })
-          }
-        } else if (columns && columns.length) {
-          // Column whitelist for TQE
-          const map = new Map(finalHeaders.map(h => [norm(h), h]))
-          const ordered: string[] = []
-          for (const wanted of columns) {
-            const match = map.get(norm(wanted))
-            if (match) ordered.push(match)
-          }
-          if (ordered.length) {
-            finalHeaders = ordered
-            finalRows = finalRows.map(r => {
-              const o: Row = {}
-              finalHeaders.forEach(h => { o[h] = r[h] })
-              return o
-            })
-          }
-        }
+// Build rows restricted to those headers
+let finalRows: Row[] = data.map(r => {
+  const o: Row = {}
+  finalHeaders.forEach(h => { o[h] = r[h] })
+  return o
+})
 
-        // Drop rows that are all zero/blank across data columns (ignore name col)
-        finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
+// Drop rows that are all zeros/blanks (ignoring name-like column)
+finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
 
-        setHeaders(finalHeaders)
-        setRows(finalRows)
-        setPage(1)
+if (oomPreset) {
+  const ordered = buildOomHeaderOrder(finalHeaders)
+  if (ordered.length) {
+    finalHeaders = ordered
+    finalRows = finalRows.map(r => {
+      const o: Row = {}
+      finalHeaders.forEach(h => { o[h] = r[h] })
+      return o
+    })
+    // Re-apply zero/blank row filter after reordering (header set changed)
+    finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
+  }
+} else if (columns && columns.length) {
+  const map = new Map(finalHeaders.map(h => [norm(h), h]))
+  const ordered: string[] = []
+  for (const wanted of columns) {
+    const match = map.get(norm(wanted))
+    if (match) ordered.push(match)
+  }
+  if (ordered.length) {
+    finalHeaders = ordered
+    finalRows = finalRows.map(r => {
+      const o: Row = {}
+      finalHeaders.forEach(h => { o[h] = r[h] })
+      return o
+    })
+    // Re-apply zero/blank row filter after reordering
+    finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
+  }
+}
+
+setHeaders(finalHeaders)
+setRows(finalRows)
+
+	setPage(1)
         setPageSize('all')
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to fetch CSV')
