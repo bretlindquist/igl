@@ -1,29 +1,15 @@
 'use client'
 import React, { useEffect, useMemo, useState } from 'react'
 
-/* ---------- Proxy helper (routes full Google URL via /api/sheet) ---------- */
+/* ---------- URL helper: route through our API & add cache-buster ---------- */
 function toProxiedCsvUrl(original: string): string {
   try {
     const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
     const u = new URL(original, base)
-
-    // Google "Publish to web" CSV endpoint?
-    const isGoogle =
-      /(^|\.)docs\.google\.com$/i.test(u.hostname) &&
-      /\/spreadsheets\/d\/e\//.test(u.pathname)
-
-    if (isGoogle) {
-      const cb = Date.now().toString()
-      // IMPORTANT: pass the FULL URL as ?url= (not gid)
-      return `/api/sheet?url=${encodeURIComponent(u.toString())}&cb=${cb}`
-    }
-
-    // Non-Google: still add a cache buster
-    u.searchParams.set('cb', Date.now().toString())
-    return u.pathname + '?' + u.searchParams.toString()
+    // prefer passing full URL to the API
+    return `/api/sheet?url=${encodeURIComponent(u.toString())}&cb=${Date.now()}`
   } catch {
-    // Fallback
-    return `/api/sheet?cb=${Date.now().toString()}`
+    return `/api/sheet?url=${encodeURIComponent(original)}&cb=${Date.now()}`
   }
 }
 
@@ -49,13 +35,12 @@ function parseCSV(csv: string): string[][] {
   return rows.filter(r => r.some(c => String(c).trim().length))
 }
 
-/** Robust header inference: skips single-cell title rows, prefers real header row (TQE-safe) */
+/** Infer header row, skip single-cell title lines, TQE-safe */
 function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: number } {
   let start = 0
   while (start < matrix.length && matrix[start].every(c => !String(c).trim())) start++
   if (start >= matrix.length) return { headers: [], dataStart: matrix.length }
 
-  // Skip a single-cell course-title row like "1. Mission Hills Norman,,,,"
   const first = matrix[start].map(c => String(c).trim())
   if (first.filter(Boolean).length === 1 && (matrix[start + 1] ?? []).some(c => String(c).trim())) {
     start++
@@ -75,22 +60,16 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
 
   let headers: string[]
   let dataStart: number
-  const r1LooksLikeHeader = hasHeaderHints(r1) || alphaRatio(r1) >= 0.4
-  const r2LooksLikeHeader = hasHeaderHints(r2) || alphaRatio(r2) >= 0.6
+  const r1LooksLike = hasHeaderHints(r1) || alphaRatio(r1) >= 0.4
+  const r2LooksLike = hasHeaderHints(r2) || alphaRatio(r2) >= 0.6
 
-  if (r1LooksLikeHeader && !r2LooksLikeHeader) {
-    headers = r1
-    dataStart = start + 1
-  } else if (!r1LooksLikeHeader && r2LooksLikeHeader) {
-    headers = r2
-    dataStart = start + 2
-  } else {
-    // tie-break: prefer r1 unless very sparse
+  if (r1LooksLike && !r2LooksLike) { headers = r1; dataStart = start + 1 }
+  else if (!r1LooksLike && r2LooksLike) { headers = r2; dataStart = start + 2 }
+  else {
     const r1NonEmpty = r1.filter(Boolean).length
     const r2NonEmpty = r2.filter(Boolean).length
     if (r1NonEmpty >= Math.floor(0.6 * Math.max(r1.length, r2.length))) {
-      headers = r1
-      dataStart = start + 1
+      headers = r1; dataStart = start + 1
     } else {
       headers = r2NonEmpty ? r2 : r1
       dataStart = r2NonEmpty ? start + 2 : start + 1
@@ -104,7 +83,6 @@ function deriveHeaders(matrix: string[][]): { headers: string[]; dataStart: numb
     seen.set(h, n)
     return n > 1 ? `${h} (${n})` : h
   })
-
   return { headers, dataStart }
 }
 
@@ -121,27 +99,27 @@ function norm(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').replace(/_/g, ' ').trim()
 }
 
-/** Remove rows that are all zeros/blanks across data columns (keep name-like column) */
+/** Drop rows where all data cells are blank or numeric zero (ignores the name column) */
 function isAllZeroOrBlank(row: Record<string, string>, headers: string[]): boolean {
   const nameIdx = headers.findIndex(h => /screen\s*_?\s*name/i.test(h))
   const skipHeader = nameIdx >= 0 ? headers[nameIdx] : headers[0]
 
-  let anyMeaningful = false
+  let sawNonNumericText = false
   for (const h of headers) {
     if (h === skipHeader) continue
     const v = String(row[h] ?? '').trim()
     if (!v) continue
-    const n = Number(String(v).replace(/[^0-9.\-]/g, ''))
+    const n = Number(v.replace(/[^0-9.\-]/g, ''))
     if (!Number.isNaN(n)) {
-      if (n !== 0) return false // keep row if any number is non-zero
+      if (n !== 0) return false // keep row if any non-zero numeric
     } else {
-      anyMeaningful = true // non-numeric text: keep
+      sawNonNumericText = true // textual value → keep
     }
   }
-  return !anyMeaningful
+  return !sawNonNumericText
 }
 
-/* ---------- OOM preset helpers ---------- */
+/* ---------- OOM helpers (unchanged aesthetics) ---------- */
 const OOM_DEADLINES: { iso: string; course: string }[] = [
   { iso: '2025-09-28', course: 'Mission Hills – Norman' },
   { iso: '2025-09-28', course: 'Purunsol' },
@@ -151,14 +129,12 @@ const OOM_DEADLINES: { iso: string; course: string }[] = [
   { iso: '2025-11-09', course: 'Sophia Green' },
   { iso: '2025-11-23', course: 'Phoenix Resort' },
 ]
-
 function formatKST(iso: string): string {
   const d = new Date(iso + 'T00:00:00Z')
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Seoul'
   }).format(d) + ' (KST)'
 }
-
 const OOM_COURSES: { id: string; patterns: RegExp[]; display: string }[] = [
   { id: 'tqe1', patterns: [/mission\s*hills\s*norman/i], display: 'Course 1 (TQE1) – Mission Hills Norman' },
   { id: 'tqe2', patterns: [/purunsol/i, /purun\s*sol/i], display: 'Course 2 (TQE2) – Purunsol' },
@@ -168,13 +144,11 @@ const OOM_COURSES: { id: string; patterns: RegExp[]; display: string }[] = [
   { id: 'tqe6', patterns: [/soph?ia\s*green/i, /sohpia\s*green/i], display: 'Course 6 (TQE6) – Sophia Green' },
   { id: 'tqe7', patterns: [/phoenix/i], display: 'Course 7 (TQE7) – Phoenix Resort' },
 ]
-
 const OOM_SUMMARY_LABELS = [
   { key: 'grandTotal', patterns: [/grand\s*total/i] },
   { key: 'appr', patterns: [/av\.?\s*points?\s*per\s*round/i, /\bappr\b/i] },
   { key: 'apprRank', patterns: [/rank.*appr/i, /rank\s*based\s*on\s*appr/i] },
 ]
-
 function pickHeader(headers: string[], patterns: RegExp[]): string | null {
   for (const p of patterns) {
     const hit = headers.find(h => p.test(h))
@@ -182,48 +156,21 @@ function pickHeader(headers: string[], patterns: RegExp[]): string | null {
   }
   return null
 }
-
 function buildOomHeaderOrder(headers: string[]): string[] {
   const out: string[] = []
   const screenName =
     pickHeader(headers, [/^screen\s*_?\s*name$/i, /^screen\s*name$/i, /^nickname$/i, /^name$/i]) ??
     (headers.includes('screen_name') ? 'screen_name' : headers[0])
-
   if (headers.includes(screenName)) out.push(screenName)
   for (const c of OOM_COURSES) {
-    const h = pickHeader(headers, c.patterns)
-    if (h) out.push(h)
+    const h = pickHeader(headers, c.patterns); if (h) out.push(h)
   }
   for (const s of OOM_SUMMARY_LABELS) {
-    const h = pickHeader(headers, s.patterns)
-    if (h) out.push(h)
+    const h = pickHeader(headers, s.patterns); if (h) out.push(h)
   }
   if (headers.includes(screenName)) out.push(screenName)
-
   const seen = new Set<string>()
   return out.filter(h => !seen.has(h) && seen.add(h))
-}
-
-function extractDeadlines(matrix: string[][]): string[] {
-  const lines: string[] = []
-  for (let i = Math.max(0, matrix.length - 40); i < matrix.length; i++) {
-    const row = matrix[i].map(c => String(c).trim()).filter(Boolean)
-    if (!row.length) continue
-    const joined = row.join(' ')
-    const hasKeyword = /deadline|due\s*date|due\s*by/i.test(joined)
-    const mentionsCourse = OOM_COURSES.some(c => c.patterns.some(p => p.test(joined)))
-    const looksLikeDate =
-      /\b(20\d{2}|19\d{2})[-/\.](0?[1-9]|1[0-2])[-/\.](0?[1-9]|[12]\d|3[01])\b/i.test(joined) ||
-      /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.test(joined)
-    if (hasKeyword || (mentionsCourse && looksLikeDate)) lines.push(joined)
-  }
-  const uniq: string[] = []
-  const seen = new Set<string>()
-  for (const s of lines) {
-    const k = s.toLowerCase().replace(/\s+/g, ' ').trim()
-    if (!seen.has(k)) { seen.add(k); uniq.push(s) }
-  }
-  return uniq
 }
 
 /* ---------- Component ---------- */
@@ -231,9 +178,7 @@ type Row = Record<string, string>
 
 export default function ResponsiveOOMViewer(props: {
   csvUrl: string
-  /** Use for OOM only: special column order + deadline footer */
   oomPreset?: boolean
-  /** For non-OOM views (e.g., TQE): keep only these columns (order preserved). */
   columns?: string[]
 }) {
   const { csvUrl, columns, oomPreset } = props
@@ -248,7 +193,6 @@ export default function ResponsiveOOMViewer(props: {
   const [pageSize, setPageSize] = useState<number | 'all'>('all')
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
-  const [deadlines, setDeadlines] = useState<string[]>([])
 
   useEffect(() => {
     async function load() {
@@ -259,32 +203,28 @@ export default function ResponsiveOOMViewer(props: {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const matrix = parseCSV(text)
-        if (!matrix.length) { setHeaders([]); setRows([]); return }
+        if (!matrix.length) { setRows([]); setHeaders([]); return }
 
         const { headers: hdr, dataStart } = deriveHeaders(matrix)
         const body = matrix.slice(dataStart)
 
-        // Map rows from header
+        // raw -> keyed rows
         const data: Row[] = body.map(r => {
           const o: Row = {}
           for (let i = 0; i < hdr.length; i++) o[hdr[i]] = String(r[i] ?? '')
           return o
         })
 
-        // deadlines (OOM only)
-        const dl = oomPreset ? extractDeadlines(matrix) : []
-        setDeadlines(dl)
-
-        // Remove empty columns
+        // Remove columns that are completely empty across data
         const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
         let finalHeaders = hdr.filter((_, i) => keepMask[i])
-        let finalRows: Row[] = data.map(r => {
+        let finalRows = data.map(r => {
           const o: Row = {}
           finalHeaders.forEach(h => { o[h] = r[h] })
           return o
         })
 
-        // Reorder for OOM or whitelist for TQE
+        // Preferred order for OOM
         if (oomPreset) {
           const ordered = buildOomHeaderOrder(finalHeaders)
           if (ordered.length) {
@@ -296,6 +236,7 @@ export default function ResponsiveOOMViewer(props: {
             })
           }
         } else if (columns && columns.length) {
+          // Column whitelist for TQE
           const map = new Map(finalHeaders.map(h => [norm(h), h]))
           const ordered: string[] = []
           for (const wanted of columns) {
@@ -312,7 +253,7 @@ export default function ResponsiveOOMViewer(props: {
           }
         }
 
-        // Drop all-zero/blank rows
+        // Drop rows that are all zero/blank across data columns (ignore name col)
         finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
 
         setHeaders(finalHeaders)
@@ -320,8 +261,7 @@ export default function ResponsiveOOMViewer(props: {
         setPage(1)
         setPageSize('all')
       } catch (e) {
-        if (e instanceof Error) setError(e.message)
-        else setError('Failed to fetch CSV')
+        setError(e instanceof Error ? e.message : 'Failed to fetch CSV')
       } finally {
         setLoading(false)
       }
@@ -329,22 +269,14 @@ export default function ResponsiveOOMViewer(props: {
     load()
   }, [csvUrl, columns, oomPreset])
 
-  /* ---------- Filtering (unlimited comma-separated names) ---------- */
+  /* ---------- Filtering ---------- */
   const filtered = useMemo(() => {
     if (!rows.length) return rows
-
     const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
     const nameHeader = visibleHeaders.find(h => /screen\s*_?\s*name/i.test(h)) ?? visibleHeaders[0]
-
     const raw = query.trim()
     if (!raw) return rows
-
-    const terms = raw
-      .split(',')
-      .map(t => t.trim())
-      .filter(Boolean)
-      .map(t => t.toLowerCase())
-
+    const terms = raw.split(',').map(t => t.trim()).filter(Boolean).map(t => t.toLowerCase())
     if (terms.length >= 2) {
       return rows.filter(r => {
         const hayName = String(r[nameHeader] ?? '').toLowerCase()
@@ -354,11 +286,8 @@ export default function ResponsiveOOMViewer(props: {
         )
       })
     }
-
     const t = terms[0]
-    return rows.filter(r =>
-      visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t))
-    )
+    return rows.filter(r => visibleHeaders.some(h => String(r[h] ?? '').toLowerCase().includes(t)))
   }, [rows, query, headers, hiddenCols])
 
   /* ---------- Sorting & paging ---------- */
@@ -376,17 +305,18 @@ export default function ResponsiveOOMViewer(props: {
     return copy
   }, [filtered, sortKey, sortDir])
 
-  const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(sorted.length / pageSize))
+  const [pageSizeState, setPageSizeState] = useState<number | 'all'>('all')
+  useEffect(() => { setPageSizeState(pageSize) }, [pageSize])
+  const totalPages = pageSizeState === 'all' ? 1 : Math.max(1, Math.ceil(sorted.length / pageSizeState))
   const pageRows = useMemo(() => {
-    if (pageSize === 'all') return sorted
-    const start = (page - 1) * pageSize
-    return sorted.slice(start, start + pageSize)
-  }, [sorted, page, pageSize])
+    if (pageSizeState === 'all') return sorted
+    const start = (page - 1) * pageSizeState
+    return sorted.slice(start, start + pageSizeState)
+  }, [sorted, page, pageSizeState])
 
   function toggleCol(h: string) {
     const next = new Set(hiddenCols)
-    if (next.has(h)) next.delete(h)
-    else next.add(h)
+    if (next.has(h)) next.delete(h); else next.add(h)
     setHiddenCols(next)
   }
 
@@ -408,7 +338,7 @@ export default function ResponsiveOOMViewer(props: {
       {error ? <div className="text-red-600 text-sm">{error}</div> : null}
       {loading ? <div className="text-slate-600 text-sm">Loading…</div> : null}
 
-      {/* Controls: search (with clear ×) + page size */}
+      {/* Controls */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
         <div className="relative w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
           <input
@@ -441,10 +371,10 @@ export default function ResponsiveOOMViewer(props: {
           <select
             className="border rounded-lg px-2 py-2 bg-white text-slate-900 border-slate-300
                        dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
-            value={pageSize === 'all' ? 'all' : String(pageSize)}
+            value={pageSizeState === 'all' ? 'all' : String(pageSizeState)}
             onChange={e => {
               const v = e.target.value === 'all' ? 'all' : Number(e.target.value)
-              setPageSize(v); setPage(1)
+              setPageSizeState(v); setPage(1)
             }}
             aria-label="Rows per page"
           >
@@ -455,8 +385,7 @@ export default function ResponsiveOOMViewer(props: {
       </div>
 
       {/* Desktop table */}
-      <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm
-                      dark:border-slate-700">
+      <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm dark:border-slate-700">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 sticky top-0 z-30 dark:bg-slate-800">
             <tr>
@@ -466,17 +395,13 @@ export default function ResponsiveOOMViewer(props: {
                   const i = visibleHeaders.findIndex(x => /screen\s*_?\s*name/i.test(x))
                   return i >= 0 ? i : 0
                 })()
-
                 return visibleHeaders.map((h, colIdx) => {
                   const stickyClasses =
                     colIdx === nameIdx
                       ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                       : ''
                   return (
-                    <th
-                      key={h}
-                      className={`px-4 py-3 text-left font-semibold whitespace-normal break-words align-top ${stickyClasses}`}
-                    >
+                    <th key={h} className={`px-4 py-3 text-left font-semibold whitespace-normal break-words align-top ${stickyClasses}`}>
                       <button
                         onClick={() => {
                           if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
@@ -493,7 +418,6 @@ export default function ResponsiveOOMViewer(props: {
               })()}
             </tr>
           </thead>
-
           <tbody>
             {(() => {
               const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
@@ -501,7 +425,6 @@ export default function ResponsiveOOMViewer(props: {
                 const i = visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
                 return i >= 0 ? i : 0
               })()
-
               return pageRows.map((r, rowIdx) => (
                 <tr
                   key={rowIdx}
@@ -511,29 +434,22 @@ export default function ResponsiveOOMViewer(props: {
                   {visibleHeaders.map((h, colIdx) => {
                     const value = String(r[h] ?? '')
                     const isName = colIdx === nameColIdx
-                    const rowBg =
-                      rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'
+                    const rowBg = rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'
                     const hoverBg = 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
                     return (
                       <td
                         key={h}
                         className={[
                           'px-4 py-3 whitespace-nowrap',
-                          isName
-                            ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200 dark:border-slate-700`
-                            : '',
+                          isName ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200 dark:border-slate-700` : '',
                         ].join(' ')}
                       >
                         {isName ? (
                           <span className="inline-grid">
                             <span className="font-semibold invisible">{value}</span>
-                            <span className="col-start-1 row-start-1 group-hover:font-semibold">
-                              {value}
-                            </span>
+                            <span className="col-start-1 row-start-1 group-hover:font-semibold">{value}</span>
                           </span>
-                        ) : (
-                          value
-                        )}
+                        ) : (value)}
                       </td>
                     )
                   })}
@@ -547,20 +463,12 @@ export default function ResponsiveOOMViewer(props: {
       {/* Mobile cards */}
       <div className="sm:hidden grid grid-cols-1 gap-3">
         {pageRows.map((r, idx) => (
-          <div
-            key={idx}
-            className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4
-                       dark:border-slate-700 dark:bg-slate-900"
-          >
+          <div key={idx} className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4 dark:border-slate-700 dark:bg-slate-900">
             <div className="grid grid-cols-2 gap-y-2 gap-x-4">
               {headers.filter(h => !hiddenCols.has(h)).map(h => (
                 <React.Fragment key={h}>
-                  <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {h}
-                  </div>
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {String(r[h] ?? '')}
-                  </div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{h}</div>
+                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{String(r[h] ?? '')}</div>
                 </React.Fragment>
               ))}
             </div>
@@ -568,7 +476,7 @@ export default function ResponsiveOOMViewer(props: {
         ))}
       </div>
 
-      {/* Column visibility & pagination */}
+      {/* Column toggles + pagination + export */}
       {headers.length > 0 ? (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
@@ -587,11 +495,10 @@ export default function ResponsiveOOMViewer(props: {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            {pageSize !== 'all' ? (
+            {pageSizeState !== 'all' ? (
               <>
                 <button
-                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white
-                             dark:border-slate-700 dark:bg-slate-900"
+                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
                 >
@@ -601,8 +508,7 @@ export default function ResponsiveOOMViewer(props: {
                   Page {page} / {totalPages}
                 </span>
                 <button
-                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white
-                             dark:border-slate-700 dark:bg-slate-900"
+                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
                 >
@@ -610,13 +516,10 @@ export default function ResponsiveOOMViewer(props: {
                 </button>
               </>
             ) : (
-              <span className="text-sm text-slate-600 dark:text-slate-400">
-                Showing all {sorted.length} rows
-              </span>
+              <span className="text-sm text-slate-600 dark:text-slate-400">Showing all {sorted.length} rows</span>
             )}
             <button
-              className="px-3 py-1 rounded-lg border border-slate-300 bg-white
-                         dark:border-slate-700 dark:bg-slate-900"
+              className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"
               onClick={exportVisibleCSV}
             >
               Export
@@ -625,24 +528,16 @@ export default function ResponsiveOOMViewer(props: {
         </div>
       ) : null}
 
-      {/* Deadline notice (OOM only, static list) */}
+      {/* OOM deadlines panel (only for oomPreset) */}
       {oomPreset ? (
-        <div
-          className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm
-                     dark:border-slate-700 dark:bg-slate-900"
-        >
+        <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-2">
-            <div
-              className="h-8 w-8 rounded-full border border-neutral-300 grid place-items-center
-                         dark:border-slate-700"
-            >
+            <div className="h-8 w-8 rounded-full border border-neutral-300 grid place-items-center dark:border-slate-700">
               <span className="text-sm font-serif">⛳️</span>
             </div>
             <div className="font-serif text-lg tracking-tight">Entry Deadlines</div>
           </div>
-          <div className="text-neutral-500 dark:text-slate-400 text-sm mb-3">
-            Please submit your scores by the dates below.
-          </div>
+          <div className="text-neutral-500 dark:text-slate-400 text-sm mb-3">Please submit your scores by the dates below.</div>
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-y-1 gap-x-6">
             {OOM_DEADLINES.map((d, i) => (
               <li key={i} className="text-[0.95rem]">
