@@ -1,29 +1,28 @@
 'use client'
 import React, { useEffect, useMemo, useState } from 'react'
 
-/* ---------- Proxy helper (routes full Google URL via /api/sheet) ---------- */
 function toProxiedCsvUrl(original: string): string {
   try {
-    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
-    const u = new URL(original, base)
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const u = new URL(original, base);
 
-    // Google "Publish to web" CSV endpoint?
+    // Is it a Google "Publish to web" sheet URL with a gid?
     const isGoogle =
       /(^|\.)docs\.google\.com$/i.test(u.hostname) &&
-      /\/spreadsheets\/d\/e\//.test(u.pathname)
+      /\/spreadsheets\/d\/e\//.test(u.pathname);
+    const gid = u.searchParams.get('gid');
 
-    if (isGoogle) {
-      const cb = Date.now().toString()
-      // IMPORTANT: pass the FULL URL as ?url= (not gid)
-      return `/api/sheet?url=${encodeURIComponent(u.toString())}&cb=${cb}`
+    if (isGoogle && gid) {
+      // Route through our API and add a per-load cache buster
+      return `/api/sheet?gid=${encodeURIComponent(gid)}&cb=${Date.now()}`;
     }
 
-    // Non-Google: still add a cache buster
-    u.searchParams.set('cb', Date.now().toString())
-    return u.pathname + '?' + u.searchParams.toString()
+    // If it isn't a Google link (or no gid), still add a cache buster
+    u.searchParams.set('cb', String(Date.now()));
+    return u.pathname + '?' + u.searchParams.toString();
   } catch {
-    // Fallback
-    return `/api/sheet?cb=${Date.now().toString()}`
+    // If original was a bare string without protocol etc., fall back
+    return `/api/sheet?cb=${Date.now()}`;
   }
 }
 
@@ -120,28 +119,34 @@ function toCSV(rows: (string | number)[][]): string {
 function norm(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').replace(/_/g, ' ').trim()
 }
-
-/** Remove rows that are all zeros/blanks across data columns (keep name-like column) */
 function isAllZeroOrBlank(row: Record<string, string>, headers: string[]): boolean {
-  const nameIdx = headers.findIndex(h => /screen\s*_?\s*name/i.test(h))
-  const skipHeader = nameIdx >= 0 ? headers[nameIdx] : headers[0]
+  // Treat first "name-like" column as label; evaluate the rest
+  const nameIdx = headers.findIndex(h => /screen\s*_?\s*name/i.test(h));
+  const skipHeader = nameIdx >= 0 ? headers[nameIdx] : headers[0];
 
-  let anyMeaningful = false
+  let anyMeaningful = false;
   for (const h of headers) {
-    if (h === skipHeader) continue
-    const v = String(row[h] ?? '').trim()
-    if (!v) continue
-    const n = Number(String(v).replace(/[^0-9.\-]/g, ''))
+    if (h === skipHeader) continue;
+    const v = String(row[h] ?? '').trim();
+    if (!v) continue; // blank -> ignore for "any meaningful"
+    // normalize numeric-ish values
+    const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
     if (!Number.isNaN(n)) {
-      if (n !== 0) return false // keep row if any number is non-zero
+      if (n !== 0) return false; // has a non-zero number => keep row
+      // numeric zero: do not mark as meaningful
     } else {
-      anyMeaningful = true // non-numeric text: keep
+      // non-numeric but non-empty (e.g., text) => meaningful
+      anyMeaningful = true;
     }
   }
-  return !anyMeaningful
+  // if any non-numeric text existed, keep; otherwise if everything was 0/blank, drop
+  return !anyMeaningful;
 }
 
+
 /* ---------- OOM preset helpers ---------- */
+
+/** ------- OOM deadlines (static) ------- */
 const OOM_DEADLINES: { iso: string; course: string }[] = [
   { iso: '2025-09-28', course: 'Mission Hills – Norman' },
   { iso: '2025-09-28', course: 'Purunsol' },
@@ -153,7 +158,7 @@ const OOM_DEADLINES: { iso: string; course: string }[] = [
 ]
 
 function formatKST(iso: string): string {
-  const d = new Date(iso + 'T00:00:00Z')
+  const d = new Date(iso + 'T00:00:00Z') // ensure no TZ drift
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Seoul'
   }).format(d) + ' (KST)'
@@ -168,13 +173,11 @@ const OOM_COURSES: { id: string; patterns: RegExp[]; display: string }[] = [
   { id: 'tqe6', patterns: [/soph?ia\s*green/i, /sohpia\s*green/i], display: 'Course 6 (TQE6) – Sophia Green' },
   { id: 'tqe7', patterns: [/phoenix/i], display: 'Course 7 (TQE7) – Phoenix Resort' },
 ]
-
 const OOM_SUMMARY_LABELS = [
   { key: 'grandTotal', patterns: [/grand\s*total/i] },
   { key: 'appr', patterns: [/av\.?\s*points?\s*per\s*round/i, /\bappr\b/i] },
   { key: 'apprRank', patterns: [/rank.*appr/i, /rank\s*based\s*on\s*appr/i] },
 ]
-
 function pickHeader(headers: string[], patterns: RegExp[]): string | null {
   for (const p of patterns) {
     const hit = headers.find(h => p.test(h))
@@ -182,7 +185,6 @@ function pickHeader(headers: string[], patterns: RegExp[]): string | null {
   }
   return null
 }
-
 function buildOomHeaderOrder(headers: string[]): string[] {
   const out: string[] = []
   const screenName =
@@ -203,7 +205,6 @@ function buildOomHeaderOrder(headers: string[]): string[] {
   const seen = new Set<string>()
   return out.filter(h => !seen.has(h) && seen.add(h))
 }
-
 function extractDeadlines(matrix: string[][]): string[] {
   const lines: string[] = []
   for (let i = Math.max(0, matrix.length - 40); i < matrix.length; i++) {
@@ -255,42 +256,40 @@ export default function ResponsiveOOMViewer(props: {
       if (!csvUrl) { setError('Missing CSV URL for this view'); return }
       setLoading(true); setError('')
       try {
-        const res = await fetch(toProxiedCsvUrl(csvUrl), { cache: 'no-store' })
+	const res = await fetch(toProxiedCsvUrl(csvUrl), { cache: 'no-store' })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const matrix = parseCSV(text)
-        if (!matrix.length) { setHeaders([]); setRows([]); return }
+        if (!matrix.length) return
 
         const { headers: hdr, dataStart } = deriveHeaders(matrix)
         const body = matrix.slice(dataStart)
 
-        // Map rows from header
         const data: Row[] = body.map(r => {
           const o: Row = {}
           for (let i = 0; i < hdr.length; i++) o[hdr[i]] = String(r[i] ?? '')
           return o
         })
 
-        // deadlines (OOM only)
         const dl = oomPreset ? extractDeadlines(matrix) : []
         setDeadlines(dl)
 
-        // Remove empty columns
         const keepMask = hdr.map(h => data.some(r => String(r[h]).trim().length > 0))
         let finalHeaders = hdr.filter((_, i) => keepMask[i])
-        let finalRows: Row[] = data.map(r => {
-          const o: Row = {}
+        // Drop trailing garbage rows that are all zeros/blanks across data columns
+	finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders));
+	const o: Row = {}
           finalHeaders.forEach(h => { o[h] = r[h] })
           return o
         })
 
-        // Reorder for OOM or whitelist for TQE
         if (oomPreset) {
           const ordered = buildOomHeaderOrder(finalHeaders)
           if (ordered.length) {
             finalHeaders = ordered
-            finalRows = finalRows.map(r => {
-              const o: Row = {}
+              // Drop trailing garbage rows that are all zeros/blanks across data columns
+		finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders));
+		const o: Row = {}
               finalHeaders.forEach(h => { o[h] = r[h] })
               return o
             })
@@ -311,9 +310,6 @@ export default function ResponsiveOOMViewer(props: {
             })
           }
         }
-
-        // Drop all-zero/blank rows
-        finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
 
         setHeaders(finalHeaders)
         setRows(finalRows)
@@ -410,12 +406,12 @@ export default function ResponsiveOOMViewer(props: {
 
       {/* Controls: search (with clear ×) + page size */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
-        <div className="relative w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
-          <input
-            className="border rounded-lg px-3 pr-10 py-2 w-full
-                       bg-white text-slate-900 border-slate-300 placeholder-slate-400
-                       dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:placeholder-slate-500
-                       focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
+	<div className="relative w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
+  	    <input
+   	      className="border rounded-lg px-3 pr-10 py-2 w-full
+        		 bg-white text-slate-900 border-slate-300 placeholder-slate-400
+               		 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:placeholder-slate-500
+                	 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"        
             placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
             value={query}
             onChange={e => { setQuery(e.target.value); setPage(1) }}
@@ -427,10 +423,10 @@ export default function ResponsiveOOMViewer(props: {
               aria-label="Clear search"
               onClick={() => { setQuery(''); setPage(1) }}
               className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7
-                         rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100
-                         dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800
-                         focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
-            >
+                 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100
+                 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800
+                 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
+              >
               <span className="text-lg leading-none">&times;</span>
             </button>
           ) : null}
@@ -438,8 +434,8 @@ export default function ResponsiveOOMViewer(props: {
 
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500 dark:text-slate-400">Rows per page</span>
-          <select
-            className="border rounded-lg px-2 py-2 bg-white text-slate-900 border-slate-300
+	  <select
+   	    className="border rounded-lg px-2 py-2 bg-white text-slate-900 border-slate-300
                        dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
             value={pageSize === 'all' ? 'all' : String(pageSize)}
             onChange={e => {
@@ -454,176 +450,176 @@ export default function ResponsiveOOMViewer(props: {
         </div>
       </div>
 
-      {/* Desktop table */}
+      {/* Desktop table (sticky name col + row hover + ghost-bold) */}
       <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm
-                      dark:border-slate-700">
+                dark:border-slate-700">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 sticky top-0 z-30 dark:bg-slate-800">
-            <tr>
-              {(() => {
-                const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
-                const nameIdx = (() => {
-                  const i = visibleHeaders.findIndex(x => /screen\s*_?\s*name/i.test(x))
-                  return i >= 0 ? i : 0
-                })()
+  <tr>
+    {(() => {
+      const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+      const nameIdx = (() => {
+        const i = visibleHeaders.findIndex(x => /screen\s*_?\s*name/i.test(x))
+        return i >= 0 ? i : 0
+      })()
 
-                return visibleHeaders.map((h, colIdx) => {
-                  const stickyClasses =
-                    colIdx === nameIdx
-                      ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200 dark:bg-slate-800 dark:border-slate-700'
-                      : ''
-                  return (
-                    <th
-                      key={h}
-                      className={`px-4 py-3 text-left font-semibold whitespace-normal break-words align-top ${stickyClasses}`}
-                    >
-                      <button
-                        onClick={() => {
-                          if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-                          else { setSortKey(h); setSortDir('asc') }
-                        }}
-                        className="inline-flex items-start gap-1 text-left"
-                      >
-                        <span className="leading-snug">{h}</span>
-                        {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
-                      </button>
-                    </th>
-                  )
-                })
-              })()}
-            </tr>
-          </thead>
-
+      return visibleHeaders.map((h, colIdx) => {
+        const stickyClasses =
+          colIdx === nameIdx
+            ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200 dark:bg-slate-800 dark:border-slate-700'
+            : ''
+        return (
+  <th
+    key={h}
+    className={`px-4 py-3 text-left font-semibold whitespace-normal break-words align-top ${stickyClasses}`}
+  >
+    <button
+      onClick={() => {
+        if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+        else { setSortKey(h); setSortDir('asc') }
+      }}
+      className="inline-flex items-start gap-1 text-left"
+    >
+      <span className="leading-snug">{h}</span>
+      {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+    </button>
+  </th>
+)      })
+    })()}
+  </tr>
+</thead>
+ 
           <tbody>
-            {(() => {
-              const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
-              const nameColIdx = (() => {
-                const i = visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
-                return i >= 0 ? i : 0
-              })()
+  {(() => {
+    const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+    const nameColIdx = (() => {
+      const i = visibleHeaders.findIndex(h => /screen\s*_?\s*name/i.test(h))
+      return i >= 0 ? i : 0
+    })()
 
-              return pageRows.map((r, rowIdx) => (
-                <tr
-                  key={rowIdx}
-                  className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors
-                             dark:odd:bg-slate-900 dark:even:bg-slate-950 dark:hover:bg-slate-800"
-                >
-                  {visibleHeaders.map((h, colIdx) => {
-                    const value = String(r[h] ?? '')
-                    const isName = colIdx === nameColIdx
-                    const rowBg =
-                      rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'
-                    const hoverBg = 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
-                    return (
-                      <td
-                        key={h}
-                        className={[
-                          'px-4 py-3 whitespace-nowrap',
-                          isName
-                            ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200 dark:border-slate-700`
-                            : '',
-                        ].join(' ')}
-                      >
-                        {isName ? (
-                          <span className="inline-grid">
-                            <span className="font-semibold invisible">{value}</span>
-                            <span className="col-start-1 row-start-1 group-hover:font-semibold">
-                              {value}
-                            </span>
-                          </span>
-                        ) : (
-                          value
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))
-            })()}
-          </tbody>
+    return pageRows.map((r, rowIdx) => (
+      <tr
+        key={rowIdx}
+        className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors
+                   dark:odd:bg-slate-900 dark:even:bg-slate-950 dark:hover:bg-slate-800"
+      >
+        {visibleHeaders.map((h, colIdx) => {
+          const value = String(r[h] ?? '')
+          const isName = colIdx === nameColIdx
+          const rowBg =
+            rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'
+          const hoverBg = 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
+          return (
+            <td
+              key={h}
+              className={[
+                'px-4 py-3 whitespace-nowrap',
+                isName
+                  ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200 dark:border-slate-700`
+                  : '',
+              ].join(' ')}
+            >
+              {isName ? (
+                <span className="inline-grid">
+                  {/* reserve width so bold-on-hover doesn't shift layout */}
+                  <span className="font-semibold invisible">{value}</span>
+                  <span className="col-start-1 row-start-1 group-hover:font-semibold">
+                    {value}
+                  </span>
+                </span>
+              ) : (
+                value
+              )}
+            </td>
+          )
+        })}
+      </tr>
+    ))
+  })()}
+</tbody>
         </table>
       </div>
 
-      {/* Mobile cards */}
-      <div className="sm:hidden grid grid-cols-1 gap-3">
-        {pageRows.map((r, idx) => (
-          <div
-            key={idx}
-            className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4
-                       dark:border-slate-700 dark:bg-slate-900"
-          >
-            <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-              {headers.filter(h => !hiddenCols.has(h)).map(h => (
-                <React.Fragment key={h}>
-                  <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {h}
-                  </div>
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {String(r[h] ?? '')}
-                  </div>
-                </React.Fragment>
-              ))}
+     {/* Mobile cards */}
+<div className="sm:hidden grid grid-cols-1 gap-3">
+  {pageRows.map((r, idx) => (
+    <div
+      key={idx}
+      className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4
+                 dark:border-slate-700 dark:bg-slate-900"
+    >
+      <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+        {headers.filter(h => !hiddenCols.has(h)).map(h => (
+          <React.Fragment key={h}>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {h}
             </div>
-          </div>
+            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+              {String(r[h] ?? '')}
+            </div>
+          </React.Fragment>
         ))}
       </div>
+    </div>
+  ))}
+</div>
 
-      {/* Column visibility & pagination */}
-      {headers.length > 0 ? (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {headers.map(h => (
-              <button
-                key={h}
-                onClick={() => toggleCol(h)}
-                className={`px-3 py-1 rounded-full border ${
-                  hiddenCols.has(h)
-                    ? 'bg-slate-200 border-slate-300 dark:bg-slate-800 dark:border-slate-700'
-                    : 'bg-white border-slate-300 dark:bg-slate-900 dark:border-slate-700'
-                }`}
-              >
-                {hiddenCols.has(h) ? `Show: ${h}` : `Hide: ${h}`}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            {pageSize !== 'all' ? (
-              <>
-                <button
-                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white
-                             dark:border-slate-700 dark:bg-slate-900"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Prev
-                </button>
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  Page {page} / {totalPages}
-                </span>
-                <button
-                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white
-                             dark:border-slate-700 dark:bg-slate-900"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Next
-                </button>
-              </>
-            ) : (
-              <span className="text-sm text-slate-600 dark:text-slate-400">
-                Showing all {sorted.length} rows
-              </span>
-            )}
-            <button
-              className="px-3 py-1 rounded-lg border border-slate-300 bg-white
-                         dark:border-slate-700 dark:bg-slate-900"
-              onClick={exportVisibleCSV}
-            >
-              Export
-            </button>
-          </div>
-        </div>
-      ) : null}
+{/* Column visibility & pagination */}
+{headers.length > 0 ? (
+  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div className="flex flex-wrap gap-2">
+      {headers.map(h => (
+        <button
+          key={h}
+          onClick={() => toggleCol(h)}
+          className={`px-3 py-1 rounded-full border ${
+            hiddenCols.has(h)
+              ? 'bg-slate-200 border-slate-300 dark:bg-slate-800 dark:border-slate-700'
+              : 'bg-white border-slate-300 dark:bg-slate-900 dark:border-slate-700'
+          }`}
+        >
+          {hiddenCols.has(h) ? `Show: ${h}` : `Hide: ${h}`}
+        </button>
+      ))}
+    </div>
+    <div className="flex items-center gap-2">
+      {pageSize !== 'all' ? (
+        <>
+          <button
+            className="px-3 py-1 rounded-lg border border-slate-300 bg-white
+                       dark:border-slate-700 dark:bg-slate-900"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            Prev
+          </button>
+          <span className="text-sm text-slate-600 dark:text-slate-400">
+            Page {page} / {totalPages}
+          </span>
+          <button
+            className="px-3 py-1 rounded-lg border border-slate-300 bg-white
+                       dark:border-slate-700 dark:bg-slate-900"
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Next
+          </button>
+        </>
+      ) : (
+        <span className="text-sm text-slate-600 dark:text-slate-400">
+          Showing all {sorted.length} rows
+        </span>
+      )}
+      <button
+        className="px-3 py-1 rounded-lg border border-slate-300 bg-white
+                   dark:border-slate-700 dark:bg-slate-900"
+        onClick={exportVisibleCSV}
+      >
+        Export
+      </button>
+    </div>
+  </div>
+) : null}
 
       {/* Deadline notice (OOM only, static list) */}
       {oomPreset ? (
@@ -652,7 +648,9 @@ export default function ResponsiveOOMViewer(props: {
           </ul>
         </div>
       ) : null}
+
+      {/* end .space-y-4 wrapper */}
     </div>
   )
 }
-
+ 
