@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 'use client'
 import { VIEWS, type ViewId } from '@/config/views'
 import ResponsiveOOMViewer from '@/components/ResponsiveOOMViewer'

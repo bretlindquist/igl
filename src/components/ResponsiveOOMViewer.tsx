@@ -1,6 +1,31 @@
 'use client'
 import React, { useEffect, useMemo, useState } from 'react'
 
+function toProxiedCsvUrl(original: string): string {
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const u = new URL(original, base);
+
+    // Is it a Google "Publish to web" sheet URL with a gid?
+    const isGoogle =
+      /(^|\.)docs\.google\.com$/i.test(u.hostname) &&
+      /\/spreadsheets\/d\/e\//.test(u.pathname);
+    const gid = u.searchParams.get('gid');
+
+    if (isGoogle && gid) {
+      // Route through our API and add a per-load cache buster
+      return `/api/sheet?gid=${encodeURIComponent(gid)}&cb=${Date.now()}`;
+    }
+
+    // If it isn't a Google link (or no gid), still add a cache buster
+    u.searchParams.set('cb', String(Date.now()));
+    return u.pathname + '?' + u.searchParams.toString();
+  } catch {
+    // If original was a bare string without protocol etc., fall back
+    return `/api/sheet?cb=${Date.now()}`;
+  }
+}
+
 /* ---------- CSV helpers ---------- */
 function parseCSV(csv: string): string[][] {
   const rows: string[][] = []
@@ -207,7 +232,7 @@ export default function ResponsiveOOMViewer(props: {
       if (!csvUrl) { setError('Missing CSV URL for this view'); return }
       setLoading(true); setError('')
       try {
-        const res = await fetch(csvUrl)
+	const res = await fetch(toProxiedCsvUrl(csvUrl), { cache: 'no-store' }))
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const text = await res.text()
         const matrix = parseCSV(text)

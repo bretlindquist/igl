@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 'use client'
 
 import { VIEWS, DEFAULT_VIEW } from '@/config/views'
