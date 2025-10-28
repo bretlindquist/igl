@@ -3,13 +3,21 @@ import React, { useEffect, useMemo, useState } from 'react'
 
 /* ---------- URL helper: route through our API & add cache-buster ---------- */
 function toProxiedCsvUrl(original: string): string {
+  // Convert a Google "publish to web" CSV URL into /api/sheet?gid=...
+  // Falls back to adding a cache-buster directly if no gid is present.
   try {
-    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
-    const u = new URL(original, base)
-    // prefer passing full URL to the API
-    return `/api/sheet?url=${encodeURIComponent(u.toString())}&cb=${Date.now()}`
+    const u = new URL(original, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+    const gid = u.searchParams.get('gid')
+    if (gid) {
+      // match your route.ts contract: accepts ?gid=...
+      return `/api/sheet?gid=${encodeURIComponent(gid)}&cb=${Date.now()}`
+    }
+    // Non-Google or no gid: just append cb to the original path (no proxy)
+    u.searchParams.set('cb', String(Date.now()))
+    return u.toString()
   } catch {
-    return `/api/sheet?url=${encodeURIComponent(original)}&cb=${Date.now()}`
+    // If original isn't a fully-qualified URL, just pass through (no proxy)
+    return original
   }
 }
 
