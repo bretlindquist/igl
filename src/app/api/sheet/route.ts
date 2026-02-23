@@ -22,26 +22,38 @@ const MAP: Record<string, string> = {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    const srcParam = searchParams.get('src');
     const key = (searchParams.get('k') || '').toUpperCase();
-    // NEW: allow direct gid passthrough
     const gidParam = searchParams.get('gid');
 
-    const gid = gidParam || (key ? MAP[key] : '');
-
-    if (!gid) {
-      return new Response(
-        JSON.stringify({ error: `Unknown sheet. Provide ?k=[${Object.keys(MAP).join(', ')}] or ?gid=<gid>` }),
-        { status: 400, headers: { 'content-type': 'application/json' } }
-      );
+    let upstreamUrl: URL | null = null
+    if (srcParam) {
+      const src = new URL(srcParam)
+      const allowedHosts = new Set(['docs.google.com', 'spreadsheets.google.com'])
+      if (src.protocol !== 'https:' || !allowedHosts.has(src.hostname)) {
+        return new Response(JSON.stringify({ error: 'Unsupported src host' }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      src.searchParams.set('cacheBust', Date.now().toString())
+      upstreamUrl = src
+    } else {
+      const gid = gidParam || (key ? MAP[key] : '');
+      if (!gid) {
+        return new Response(
+          JSON.stringify({ error: `Unknown sheet. Provide ?src=<google_csv_url>, ?k=[${Object.keys(MAP).join(', ')}], or ?gid=<gid>` }),
+          { status: 400, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      const u = new URL(BASE);
+      u.searchParams.set('gid', gid);
+      u.searchParams.set('output', 'csv');
+      u.searchParams.set('cacheBust', Date.now().toString());
+      upstreamUrl = u
     }
 
-    // Build Google CSV URL with upstream cache-buster
-    const u = new URL(BASE);
-    u.searchParams.set('gid', gid);
-    u.searchParams.set('output', 'csv');
-    u.searchParams.set('cacheBust', Date.now().toString());
-
-    const upstream = await fetch(u.toString(), {
+    const upstream = await fetch(upstreamUrl.toString(), {
       cache: 'no-store',
       headers: { 'cache-control': 'no-cache', 'pragma': 'no-cache' },
     });
@@ -70,4 +82,3 @@ export async function GET(req: Request) {
     });
   }
 }
-

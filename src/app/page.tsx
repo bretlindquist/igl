@@ -9,7 +9,7 @@ export default function Page() {
   const isOom = !def.columns
 
   return (
-    <main className="p-4 md:p-8">
+    <main className="page-shell">
       {/* Full-width for OOM; normal centered for others */}
       <div className={isOom ? 'w-full max-w-none space-y-6' : 'max-w-6xl mx-auto space-y-6'}>
         <h1 className="text-2xl md:text-4xl font-semibold tracking-tight">{def.title}</h1>
@@ -23,4 +23,3 @@ export default function Page() {
     </main>
   )
 }
-

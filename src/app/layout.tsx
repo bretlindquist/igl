@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+const ASSET_VERSION = "20260223-1";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,18 +17,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: 'IGSGS', template: '%s • IGSGS' },
   applicationName: 'IGSGS',
-  manifest: '/site.webmanifest',
-  themeColor: '#0a7d2c',
+  manifest: `/site.webmanifest?v=${ASSET_VERSION}`,
   icons: {
     icon: [
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' }
+      { url: `/favicon-32x32.png?v=${ASSET_VERSION}`, sizes: '32x32', type: 'image/png' },
+      { url: `/favicon-16x16.png?v=${ASSET_VERSION}`, sizes: '16x16', type: 'image/png' }
     ],
     apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
-    ],
-    other: [
-      { rel: 'mask-icon', url: '/safari-pinned-tab.svg', color: '#0a7d2c' }
+      { url: `/apple-touch-icon.png?v=${ASSET_VERSION}`, sizes: '180x180', type: 'image/png' }
     ]
   },
   appleWebApp: {
@@ -36,13 +34,18 @@ export const metadata: Metadata = {
   }
 }
 
+export const viewport: Viewport = {
+  themeColor: '#0a7d2c',
+  viewportFit: 'cover',
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
 <body className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900
                  dark:from-slate-900 dark:to-slate-950 dark:text-slate-100">
   {children}

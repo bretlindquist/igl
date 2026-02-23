@@ -1,8 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #edf3fb;
+  --foreground: #152035;
+  --surface: #ffffff;
+  --border: rgba(77, 107, 146, 0.24);
+  --text-muted: #5f6f87;
+  --accent: #0a7d2c;
+  --focus: #167dff;
+
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
+
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
 }
 
 @theme inline {
@@ -14,13 +32,84 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b0f16;
+    --foreground: #eaf0fb;
+    --surface: #172131;
+    --border: rgba(145, 169, 201, 0.22);
+    --text-muted: #9eaec7;
+    --accent: #4dd3ff;
+    --focus: #4dd3ff;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.page-shell {
+  padding-left: max(3px, env(safe-area-inset-left));
+  padding-right: max(3px, env(safe-area-inset-right));
+  padding-top: max(4px, env(safe-area-inset-top));
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+/* iOS (incl. Dynamic Island): add a small extra top buffer beyond safe-area inset. */
+@supports (-webkit-touch-callout: none) {
+  .page-shell {
+    padding-top: max(10px, calc(env(safe-area-inset-top) + 8px));
+  }
+}
+
+@media (min-width: 768px) {
+  .page-shell {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-shell {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Compact portrait phones: show only course numbers in headers for tighter width. */
+@media (max-width: 767px) and (orientation: portrait) {
+  .compact-course-name {
+    display: none;
+  }
+}
+
+@media (max-width: 1279px) {
+  html,
+  body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }

@@ -4,10 +4,11 @@ import { VIEWS, type ViewId } from '@/config/views'
 import ResponsiveOOMViewer from '@/components/ResponsiveOOMViewer'
 import ViewSelector from '@/components/ViewSelector'
 
-export default function ViewPage({ params }: { params: { view: ViewId } }) {
-  const def = VIEWS[params.view]
+export default async function ViewPage({ params }: { params: Promise<{ view: ViewId }> }) {
+  const { view } = await params
+  const def = VIEWS[view]
   return (
-    <main className="p-4 md:p-8">
+    <main className="page-shell">
       <div className="max-w-6xl mx-auto space-y-6">
         <h1 className="text-2xl md:text-4xl font-semibold tracking-tight">{def?.title ?? 'Unknown View'}</h1>
         <ViewSelector />
@@ -16,4 +17,3 @@ export default function ViewPage({ params }: { params: { view: ViewId } }) {
     </main>
   )
 }
-

@@ -1,20 +1,12 @@
 'use client'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 /* ---------- URL helper: route through our API & add cache-buster ---------- */
 function toProxiedCsvUrl(original: string): string {
-  // Convert a Google "publish to web" CSV URL into /api/sheet?gid=...
-  // Falls back to adding a cache-buster directly if no gid is present.
+  // Route through our API using the full source URL so sheet id + gid are preserved.
   try {
     const u = new URL(original, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
-    const gid = u.searchParams.get('gid')
-    if (gid) {
-      // match your route.ts contract: accepts ?gid=...
-      return `/api/sheet?gid=${encodeURIComponent(gid)}&cb=${Date.now()}`
-    }
-    // Non-Google or no gid: just append cb to the original path (no proxy)
-    u.searchParams.set('cb', String(Date.now()))
-    return u.toString()
+    return `/api/sheet?src=${encodeURIComponent(u.toString())}&cb=${Date.now()}`
   } catch {
     // If original isn't a fully-qualified URL, just pass through (no proxy)
     return original
@@ -127,6 +119,25 @@ function isAllZeroOrBlank(row: Record<string, string>, headers: string[]): boole
   return !sawNonNumericText
 }
 
+/** Keep only rows with a usable player name when a name-like column exists. */
+function hasUsableName(row: Record<string, string>, headers: string[]): boolean {
+  const nameHeader =
+    headers.find(h => /^screen\s*_?\s*name$/i.test(h)) ??
+    headers.find(h => /^name$/i.test(h)) ??
+    headers.find(h => /^nickname$/i.test(h))
+
+  if (!nameHeader) return true
+
+  const raw = String(row[nameHeader] ?? '').trim()
+  if (!raw) return false
+
+  // Drop numeric-only artifacts like "22" / "9" that can appear in malformed rows.
+  const normalized = raw.replace(/[,\s]/g, '')
+  if (/^-?\d+(\.\d+)?$/.test(normalized)) return false
+
+  return true
+}
+
 /* ---------- OOM helpers (unchanged aesthetics) ---------- */
 const OOM_DEADLINES: { iso: string; course: string }[] = [
   { iso: '2025-09-28', course: 'Mission Hills – Norman' },
@@ -181,6 +192,78 @@ function buildOomHeaderOrder(headers: string[]): string[] {
   return out.filter(h => !seen.has(h) && seen.add(h))
 }
 
+function pickDefaultSort(headers: string[]): { key: string; dir: 'asc' | 'desc' } | null {
+  const candidates = [
+    /final\s*points/i,
+    /grand\s*total/i,
+    /\btotal\b/i,
+    /\bpoints?\b/i,
+    /\bscore\b/i,
+    /\brank\b/i,
+  ]
+  for (const pattern of candidates) {
+    const key = headers.find(h => pattern.test(h))
+    if (!key) continue
+    return { key, dir: /rank/i.test(key) ? 'asc' : 'desc' }
+  }
+  if (!headers.length) return null
+  return { key: headers[0], dir: 'asc' }
+}
+
+function getCourseNumberLabel(header: string): string | null {
+  for (let i = 0; i < OOM_COURSES.length; i++) {
+    const course = OOM_COURSES[i]
+    if (course.patterns.some(p => p.test(header))) return String(i + 1)
+  }
+  return null
+}
+
+function getCourseHeaderParts(header: string): { number: string; name: string } | null {
+  const courseNum = getCourseNumberLabel(header)
+  if (!courseNum) return null
+  const course = OOM_COURSES[Number(courseNum) - 1]
+  const courseName = course
+    ? course.display.replace(/^Course\s+\d+\s+\(TQE\d+\)\s+[–-]\s+/i, '')
+    : header
+  return { number: courseNum, name: courseName }
+}
+
+function renderStackedCourseHeader(course: { number: string; name: string }, compact = false) {
+  const words = course.name.split(/\s+/).filter(Boolean)
+  return (
+    <span className="leading-snug text-center">
+      <span className={`block font-extrabold leading-none ${compact ? 'text-[0.66rem]' : 'text-[0.72rem]'}`}>{course.number}</span>
+      {words.map((word, idx) => (
+        <span key={`${course.number}-${idx}`} className="compact-course-name block">
+          {word}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function renderStackedHeaderText(label: string, compact = false) {
+  const words = label.split(/\s+/).filter(Boolean)
+  return (
+    <span className="leading-snug text-center">
+      {words.map((word, idx) => (
+        <span key={`${label}-${idx}`} className={`block ${compact ? 'text-[0.69rem]' : ''}`}>
+          {word}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function toDisplayHeader(header: string, compact: boolean): string {
+  if (/^screen\s*_?\s*name$/i.test(header) || /^name$/i.test(header)) return 'Name'
+  if (compact) {
+    const course = getCourseHeaderParts(header)
+    if (course) return `${course.number}. ${course.name}`
+  }
+  return header
+}
+
 /* ---------- Component ---------- */
 type Row = Record<string, string>
 
@@ -201,6 +284,8 @@ export default function ResponsiveOOMViewer(props: {
   const [pageSize, setPageSize] = useState<number | 'all'>('all')
   const [page, setPage] = useState(1)
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null)
+  const lastTapRef = useRef<{ rowKey: string; time: number } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -237,6 +322,7 @@ let finalRows: Row[] = data.map(r => {
 
 // Drop rows that are all zeros/blanks (ignoring name-like column)
 finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
+finalRows = finalRows.filter(r => hasUsableName(r, finalHeaders))
 
 if (oomPreset) {
   const ordered = buildOomHeaderOrder(finalHeaders)
@@ -249,6 +335,7 @@ if (oomPreset) {
     })
     // Re-apply zero/blank row filter after reordering (header set changed)
     finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
+    finalRows = finalRows.filter(r => hasUsableName(r, finalHeaders))
   }
 } else if (columns && columns.length) {
   const map = new Map(finalHeaders.map(h => [norm(h), h]))
@@ -266,14 +353,23 @@ if (oomPreset) {
     })
     // Re-apply zero/blank row filter after reordering
     finalRows = finalRows.filter(r => !isAllZeroOrBlank(r, finalHeaders))
+    finalRows = finalRows.filter(r => hasUsableName(r, finalHeaders))
   }
 }
 
-setHeaders(finalHeaders)
-setRows(finalRows)
-
-	setPage(1)
+        setHeaders(finalHeaders)
+        setRows(finalRows)
+        const defaultSort = pickDefaultSort(finalHeaders)
+        if (defaultSort) {
+          setSortKey(defaultSort.key)
+          setSortDir(defaultSort.dir)
+        } else {
+          setSortKey('')
+          setSortDir('asc')
+        }
+        setPage(1)
         setPageSize('all')
+        setSelectedRowKey(null)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to fetch CSV')
       } finally {
@@ -328,6 +424,17 @@ setRows(finalRows)
     return sorted.slice(start, start + pageSizeState)
   }, [sorted, page, pageSizeState])
 
+  const numericColumns = useMemo(() => {
+    const set = new Set<string>()
+    for (const h of headers) {
+      const values = rows.map(r => String(r[h] ?? '').trim()).filter(Boolean)
+      if (!values.length) continue
+      const numericCount = values.filter(v => !Number.isNaN(parseFloat(v.replace(/[^0-9.-]/g, '')))).length
+      if (numericCount / values.length >= 0.8) set.add(h)
+    }
+    return set
+  }, [headers, rows])
+
   function toggleCol(h: string) {
     const next = new Set(hiddenCols)
     if (next.has(h)) next.delete(h); else next.add(h)
@@ -354,41 +461,53 @@ setRows(finalRows)
 
       {/* Controls */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
-        <div className="relative w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
-          <input
-            className="border rounded-lg px-3 pr-10 py-2 w-full
-                       bg-white text-slate-900 border-slate-300 placeholder-slate-400
-                       dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:placeholder-slate-500
-                       focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
-            placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
-            value={query}
-            onChange={e => { setQuery(e.target.value); setPage(1) }}
-            aria-label="Search players or values"
-          />
-          {query ? (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => { setQuery(''); setPage(1) }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7
-                         rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100
-                         dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800
-                         focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
-            >
-              <span className="text-lg leading-none">&times;</span>
-            </button>
-          ) : null}
+        <div className="w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
+          <label htmlFor="table-search" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Search players or values
+          </label>
+          <div className="relative">
+            <input
+              id="table-search"
+              className="border rounded-lg px-3 pr-10 py-2 w-full
+                         bg-white text-slate-900 border-slate-300 placeholder-slate-400
+                         dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:placeholder-slate-500
+                         focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600
+                         focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500"
+              placeholder="Search… use commas for multiple (e.g., Joe, Robert)"
+              value={query}
+              onChange={e => { setQuery(e.target.value); setPage(1) }}
+              aria-describedby="table-search-help"
+            />
+            {query ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => { setQuery(''); setPage(1) }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7
+                           rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100
+                           dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800
+                           focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600
+                           focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500"
+              >
+                <span className="text-lg leading-none">&times;</span>
+              </button>
+            ) : null}
+          </div>
+          <p id="table-search-help" className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Tip: separate terms with commas, for example `Joe, Robert`.
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-500 dark:text-slate-400">Rows per page</span>
           <select
             className="border rounded-lg px-2 py-2 bg-white text-slate-900 border-slate-300
-                       dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700"
+                       dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500"
             value={pageSizeState === 'all' ? 'all' : String(pageSizeState)}
             onChange={e => {
               const v = e.target.value === 'all' ? 'all' : Number(e.target.value)
-              setPageSizeState(v); setPage(1)
+              setPageSize(v); setPageSizeState(v); setPage(1)
             }}
             aria-label="Rows per page"
           >
@@ -399,7 +518,7 @@ setRows(finalRows)
       </div>
 
       {/* Desktop table */}
-      <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm dark:border-slate-700">
+      <div className="hide-scrollbar hidden xl:block overflow-x-auto rounded-2xl border border-slate-200 shadow-sm dark:border-slate-700">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 sticky top-0 z-30 dark:bg-slate-800">
             <tr>
@@ -410,20 +529,29 @@ setRows(finalRows)
                   return i >= 0 ? i : 0
                 })()
                 return visibleHeaders.map((h, colIdx) => {
+                  const isNumeric = numericColumns.has(h) && colIdx !== nameIdx
                   const stickyClasses =
                     colIdx === nameIdx
                       ? 'sticky left-0 z-40 bg-slate-100 border-r border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                       : ''
                   return (
-                    <th key={h} className={`px-4 py-3 text-left font-semibold whitespace-normal break-words align-top ${stickyClasses}`}>
+                    <th key={h} className={`p-0 font-semibold whitespace-normal break-words align-top ${isNumeric ? 'text-right' : 'text-left'} ${stickyClasses}`}>
                       <button
                         onClick={() => {
                           if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
                           else { setSortKey(h); setSortDir('asc') }
                         }}
-                        className="inline-flex items-start gap-1 text-left"
+                        className={`inline-flex h-full min-h-[56px] w-full items-start gap-1 px-4 py-3 ${isNumeric ? 'justify-end text-right' : 'text-left'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500 rounded`}
                       >
-                        <span className="leading-snug">{h}</span>
+                        {(() => {
+                          const course = getCourseHeaderParts(h)
+                          if (!course) {
+                            const label = toDisplayHeader(h, false)
+                            if (/^name$/i.test(label)) return <span className="leading-snug">{label}</span>
+                            return renderStackedHeaderText(label)
+                          }
+                          return renderStackedCourseHeader(course)
+                        })()}
                         {sortKey === h ? <span>{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
                       </button>
                     </th>
@@ -454,7 +582,7 @@ setRows(finalRows)
                       <td
                         key={h}
                         className={[
-                          'px-4 py-3 whitespace-nowrap',
+                          `px-4 py-3 whitespace-nowrap ${numericColumns.has(h) && !isName ? 'text-right tabular-nums' : 'text-left'}`,
                           isName ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200 dark:border-slate-700` : '',
                         ].join(' ')}
                       >
@@ -474,45 +602,139 @@ setRows(finalRows)
         </table>
       </div>
 
-      {/* Mobile cards */}
-      <div className="sm:hidden grid grid-cols-1 gap-3">
-        {pageRows.map((r, idx) => (
-          <div key={idx} className="border rounded-2xl border-slate-200 bg-white shadow-sm p-4 dark:border-slate-700 dark:bg-slate-900">
-            <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-              {headers.filter(h => !hiddenCols.has(h)).map(h => (
-                <React.Fragment key={h}>
-                  <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{h}</div>
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{String(r[h] ?? '')}</div>
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        ))}
+      {/* Mobile/tablet compact table */}
+      <div className="hide-scrollbar xl:hidden overflow-x-auto rounded-2xl border border-slate-200 shadow-sm dark:border-slate-700">
+        <div className="mx-auto w-max">
+        <table className="w-max table-auto text-[10px]">
+          <thead className="bg-slate-100 dark:bg-slate-800">
+            <tr>
+              {(() => {
+                const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+                return visibleHeaders.map((h) => (
+                  <th
+                    key={h}
+                    className={`p-0 font-semibold ${
+                      /^screen\s*_?\s*name$/i.test(h) || /^name$/i.test(h)
+                        ? 'text-center align-middle whitespace-nowrap w-[7.8rem] max-w-[7.8rem]'
+                      : /(grand\s*total|av\.?\s*points?\s*per\s*round|\bappr\b|rank.*appr)/i.test(h)
+                          ? 'text-center align-middle min-w-[3.1rem]'
+                          : 'text-center align-middle min-w-[1.9rem]'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sortKey === h) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+                        else { setSortKey(h); setSortDir('asc') }
+                        setPage(1)
+                      }}
+                      className="inline-flex h-full min-h-[74px] w-full items-center justify-center gap-1 rounded px-1 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-emerald-500"
+                    >
+                      <span>
+                        {(() => {
+                          const course = getCourseHeaderParts(h)
+                          if (!course) {
+                            const label = toDisplayHeader(h, true)
+                            if (/^name$/i.test(label)) return label
+                            return renderStackedHeaderText(label, true)
+                          }
+                          return renderStackedCourseHeader(course, true)
+                        })()}
+                      </span>
+                      {sortKey === h ? <span className="text-[0.65rem]">{sortDir === 'asc' ? '▲' : '▼'}</span> : null}
+                    </button>
+                  </th>
+                ))
+              })()}
+            </tr>
+          </thead>
+          <tbody className="text-[11.5px]">
+            {(() => {
+              const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
+              const nameHeader =
+                visibleHeaders.find(h => /^screen\s*_?\s*name$/i.test(h)) ??
+                visibleHeaders.find(h => /^name$/i.test(h)) ??
+                visibleHeaders[0]
+              return pageRows.map((r, rowIdx) => (
+                (() => {
+                  const rowKey = `${String(r[nameHeader] ?? '')}__${rowIdx}`
+                  const isSelected = selectedRowKey === rowKey
+                  const handleRowTouch = () => {
+                    const now = Date.now()
+                    const last = lastTapRef.current
+                    if (last && last.rowKey === rowKey && now - last.time < 320) {
+                      setSelectedRowKey(rowKey)
+                      lastTapRef.current = null
+                      return
+                    }
+                    lastTapRef.current = { rowKey, time: now }
+                  }
+                  return (
+                <tr
+                  key={rowIdx}
+                  className={[
+                    'odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-950',
+                    'cursor-pointer active:bg-emerald-100 dark:active:bg-emerald-950/40',
+                    isSelected ? 'ring-2 ring-emerald-500' : '',
+                  ].join(' ')}
+                  onTouchStart={handleRowTouch}
+                  onDoubleClick={() => {
+                    setSelectedRowKey(rowKey)
+                  }}
+                >
+                  {visibleHeaders.map((h) => (
+                    <td
+                      key={h}
+                      className={`py-0.5 ${
+                        /^screen\s*_?\s*name$/i.test(h) || /^name$/i.test(h)
+                          ? 'pl-1 pr-0 text-left whitespace-nowrap w-[7.8rem] max-w-[7.8rem] overflow-hidden text-ellipsis font-medium'
+                          : 'px-0.5 text-center tabular-nums'
+                      } ${isSelected ? 'bg-emerald-100 dark:bg-emerald-900/40' : ''}`}
+                    >
+                      {String(r[h] ?? '')}
+                    </td>
+                  ))}
+                </tr>
+                  )
+                })()
+              ))
+            })()}
+          </tbody>
+        </table>
+        </div>
       </div>
 
       {/* Column toggles + pagination + export */}
       {headers.length > 0 ? (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {headers.map(h => (
-              <button
-                key={h}
-                onClick={() => toggleCol(h)}
-                className={`px-3 py-1 rounded-full border ${
-                  hiddenCols.has(h)
-                    ? 'bg-slate-200 border-slate-300 dark:bg-slate-800 dark:border-slate-700'
-                    : 'bg-white border-slate-300 dark:bg-slate-900 dark:border-slate-700'
-                }`}
-              >
-                {hiddenCols.has(h) ? `Show: ${h}` : `Hide: ${h}`}
-              </button>
-            ))}
+          <div>
+            <details className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+              <summary className="cursor-pointer select-none text-sm font-medium text-slate-700 dark:text-slate-200 focus-visible:outline-none">
+                Columns ({headers.length - hiddenCols.size}/{headers.length} shown)
+              </summary>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {headers.map(h => (
+                  <label
+                    key={h}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!hiddenCols.has(h)}
+                      onChange={() => toggleCol(h)}
+                      className="h-4 w-4 accent-emerald-600"
+                    />
+                    <span>{h}</span>
+                  </label>
+                ))}
+              </div>
+            </details>
           </div>
           <div className="flex items-center gap-2">
             {pageSizeState !== 'all' ? (
               <>
                 <button
-                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"
+                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500"
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
                 >
@@ -522,7 +744,7 @@ setRows(finalRows)
                   Page {page} / {totalPages}
                 </span>
                 <button
-                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"
+                  className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500"
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
                 >
@@ -533,7 +755,7 @@ setRows(finalRows)
               <span className="text-sm text-slate-600 dark:text-slate-400">Showing all {sorted.length} rows</span>
             )}
             <button
-              className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"
+              className="px-3 py-1 rounded-lg border border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500"
               onClick={exportVisibleCSV}
             >
               Export
@@ -564,4 +786,3 @@ setRows(finalRows)
     </div>
   )
 }
-
