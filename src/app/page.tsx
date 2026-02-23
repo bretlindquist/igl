@@ -1,23 +1,36 @@
 export const dynamic = 'force-dynamic';
 
-import { VIEWS, DEFAULT_VIEW } from '@/config/views'
+import { DEFAULT_VIEW, getAvailableViews, getSeasonLabel, getViews, normalizeSeason } from '@/config/views'
 import ResponsiveOOMViewer from '@/components/ResponsiveOOMViewer'
 import ViewSelector from '@/components/ViewSelector'
 
-export default function Page() {
-  const def = VIEWS[DEFAULT_VIEW]
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>
+}) {
+  const { season: rawSeason } = await searchParams
+  const season = normalizeSeason(rawSeason)
+  const views = getViews(season)
+  const def = views[DEFAULT_VIEW]
+  if (!def) return null
   const isOom = !def.columns
 
   return (
     <main className="page-shell">
       {/* Full-width for OOM; normal centered for others */}
       <div className={isOom ? 'w-full max-w-none space-y-6' : 'max-w-6xl mx-auto space-y-6'}>
-        <h1 className="text-2xl md:text-4xl font-semibold tracking-tight">{def.title}</h1>
-        <ViewSelector />
+        <ViewSelector
+          season={season}
+          seasonLabel={getSeasonLabel(season)}
+          availableViews={getAvailableViews(season)}
+        />
         <ResponsiveOOMViewer
           csvUrl={def.csv}
+          fallbackCsvUrl={def.fallbackCsv}
           oomPreset={isOom}
           columns={def.columns}
+          oomMeta={def.oomMeta}
         />
       </div>
     </main>
