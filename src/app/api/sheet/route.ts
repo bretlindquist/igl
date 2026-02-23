@@ -2,22 +2,7 @@
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Shared BASE for your published sheet
-const BASE =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTLICxWkOzCBLlCLTUM5hQAy04hyZ2G4qZBTPVff9QiMKwxzMISEsbdRFp_1qWfWH7WMUt-c5w8QJ6n/pub';
-
-// Map logical keys -> gids
-const MAP: Record<string, string> = {
-  OOM: '1778336569',
-  TQE1: '1208158980',
-  TQE2: '1521728872',
-  TQE3: '1845609019',
-  TQE4: '1340015654',
-  TQE5: '1087142582',
-  TQE6: '1087206475',
-  TQE7: '639052434',
-  ECLECTIC: '1602664288',
-};
+import { SHEET_KEY_TO_URL } from '@/config/data-sources'
 
 export async function GET(req: Request) {
   try {
@@ -39,16 +24,16 @@ export async function GET(req: Request) {
       src.searchParams.set('cacheBust', Date.now().toString())
       upstreamUrl = src
     } else {
-      const gid = gidParam || (key ? MAP[key] : '');
-      if (!gid) {
+      const fromKey = key ? SHEET_KEY_TO_URL[key] : ''
+      const fromGid = gidParam ? `https://docs.google.com/spreadsheets/d/e/2PACX-1vTLICxWkOzCBLlCLTUM5hQAy04hyZ2G4qZBTPVff9QiMKwxzMISEsbdRFp_1qWfWH7WMUt-c5w8QJ6n/pub?gid=${gidParam}&output=csv` : ''
+      const resolved = fromKey || fromGid
+      if (!resolved) {
         return new Response(
-          JSON.stringify({ error: `Unknown sheet. Provide ?src=<google_csv_url>, ?k=[${Object.keys(MAP).join(', ')}], or ?gid=<gid>` }),
+          JSON.stringify({ error: `Unknown sheet. Provide ?src=<google_csv_url>, ?k=[${Object.keys(SHEET_KEY_TO_URL).join(', ')}], or ?gid=<gid>` }),
           { status: 400, headers: { 'content-type': 'application/json' } }
         );
       }
-      const u = new URL(BASE);
-      u.searchParams.set('gid', gid);
-      u.searchParams.set('output', 'csv');
+      const u = new URL(resolved)
       u.searchParams.set('cacheBust', Date.now().toString());
       upstreamUrl = u
     }
