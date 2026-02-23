@@ -1,77 +1,73 @@
-export type ViewId =
-  | 'oom'
-  | 'tqe-1'
-  | 'tqe-2'
-  | 'tqe-3'
-  | 'tqe-4'
-  | 'tqe-5'
-  | 'tqe-6'
-  | 'tqe-7'
-  | 'eclectic';
+import {
+  SEASON_VIEW_SOURCES,
+  type OomSeasonMeta,
+  type SeasonId,
+  type ViewId,
+} from './data-sources'
 
-type ViewDef = { title: string; csv: string; columns?: string[] };
+export type { SeasonId, ViewId, OomSeasonMeta }
 
-/** Canonical TQE column order for consistency across all tournaments */
-export const TQE_COLUMNS: string[] = [
-  'screen_name',
-  'SUM of gross',
-  'SUM of absolute_net',
-  'SUM of Comp_score',
-  'Handi bonus',
-  'Final Points',
-];
+export type ViewDef = {
+  title: string
+  csv: string
+  fallbackCsv?: string
+  columns?: string[]
+  oomMeta?: OomSeasonMeta
+}
 
-export const VIEWS: Record<ViewId, ViewDef> = {
-  // ---------------------- OOM ----------------------
-  oom: {
-    title: 'OOM Table',
-    csv: process.env.NEXT_PUBLIC_CSV_OOM || '',
-  },
+const DEFAULT_SEASON: SeasonId = 'spring-2026'
 
-  // ---------------------- TQE SERIES ----------------------
-  'tqe-1': {
-    title: 'TQE 1 — Mission Hills Norman (L/L)',
-    csv: process.env.NEXT_PUBLIC_CSV_TQE1 || '',
-    columns: TQE_COLUMNS,
-  },
-  'tqe-2': {
-    title: 'TQE 2 — Purunsol [Lake/Mountain] (R/R)',
-    csv: process.env.NEXT_PUBLIC_CSV_TQE2 || '',
-    columns: TQE_COLUMNS,
-  },
-  'tqe-3': {
-    title: 'TQE 3 — St Andrews (L/L)',
-    csv: process.env.NEXT_PUBLIC_CSV_TQE3 || '',
-    columns: TQE_COLUMNS,
-  },
-  'tqe-4': {
-    title: 'TQE 4 — Tani CC (R/R)',
-    csv: process.env.NEXT_PUBLIC_CSV_TQE4 || '',
-    columns: TQE_COLUMNS,
-  },
-  'tqe-5': {
-    title: 'TQE 5 — Ariji CC (L/L)',
-    csv: process.env.NEXT_PUBLIC_CSV_TQE5 || '',
-    columns: TQE_COLUMNS,
-  },
-  'tqe-6': {
-    title: 'TQE 6 — Sophia Green (R/R)',
-    csv: process.env.NEXT_PUBLIC_CSV_TQE6 || '',
-    columns: TQE_COLUMNS,
-  },
-  'tqe-7': {
-    title: 'TQE 7 — Phoenix Resort [Phoenix] (L/L)',
-    csv: process.env.NEXT_PUBLIC_CSV_TQE7 || '',
-    columns: TQE_COLUMNS,
-  },
+function archiveCsv(season: SeasonId, file: string): string {
+  return `/archive/${season}/${file}.csv`
+}
 
-  // ---------------------- ECLECTIC LEADERBOARD ----------------------
-  eclectic: {
-    title: 'Eclectic Leaderboard',
-    csv: process.env.NEXT_PUBLIC_CSV_ECLECTIC || '',
-    // no column restriction — show all columns by default
-  },
-};
+function toViewDef(season: SeasonId, src: NonNullable<(typeof SEASON_VIEW_SOURCES)[SeasonId][ViewId]>): ViewDef {
+  const local = archiveCsv(season, src.localArchiveFile)
+  const csv = src.strategy === 'local-first' ? local : src.remoteUrl
+  const fallbackCsv = src.strategy === 'local-first' ? src.remoteUrl : local
 
-export const DEFAULT_VIEW: ViewId = 'oom';
+  return {
+    title: src.title,
+    csv,
+    fallbackCsv,
+    columns: src.columns,
+    oomMeta: src.oomMeta,
+  }
+}
 
+function buildViews(season: SeasonId): Partial<Record<ViewId, ViewDef>> {
+  const out: Partial<Record<ViewId, ViewDef>> = {}
+  const byView = SEASON_VIEW_SOURCES[season]
+  const ids = Object.keys(byView) as ViewId[]
+  for (const id of ids) {
+    const src = byView[id]
+    if (!src) continue
+    out[id] = toViewDef(season, src)
+  }
+  return out
+}
+
+const SEASON_LABELS: Record<SeasonId, string> = {
+  'fall-2025': 'Fall 2025',
+  'spring-2026': 'Spring 2026',
+}
+
+export function normalizeSeason(input?: string | null): SeasonId {
+  if (input === 'spring-2026') return 'spring-2026'
+  if (input === 'fall-2025') return 'fall-2025'
+  return DEFAULT_SEASON
+}
+
+export function getSeasonLabel(season: SeasonId): string {
+  return SEASON_LABELS[season]
+}
+
+export function getViews(season: SeasonId): Partial<Record<ViewId, ViewDef>> {
+  return buildViews(season)
+}
+
+export function getAvailableViews(season: SeasonId): ViewId[] {
+  return Object.keys(SEASON_VIEW_SOURCES[season]) as ViewId[]
+}
+
+export const DEFAULT_VIEW: ViewId = 'oom'
