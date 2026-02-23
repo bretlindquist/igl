@@ -21,6 +21,7 @@
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-6: 1.5rem;
+  --tabs-sticky-top: 8px;
 }
 
 @theme inline {
@@ -89,10 +90,44 @@ body {
   display: none;
 }
 
+.season-menu-button {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  z-index: 70;
+}
+
+.season-menu-panel {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 48px);
+  right: max(8px, env(safe-area-inset-right));
+  width: min(280px, calc(100vw - 16px));
+  z-index: 70;
+}
+
+.view-tabs-sticky {
+  position: sticky;
+  top: var(--tabs-sticky-top);
+  z-index: 50;
+}
+
+/* iOS Safari / PWA: slight additional top inset to avoid bar overlap. */
+@supports (-webkit-touch-callout: none) {
+  :root {
+    --tabs-sticky-top: env(safe-area-inset-top);
+  }
+}
+
 /* Compact portrait phones: show only course numbers in headers for tighter width. */
 @media (max-width: 767px) and (orientation: portrait) {
   .compact-course-name {
     display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --tabs-sticky-top: 12px;
   }
 }
 
