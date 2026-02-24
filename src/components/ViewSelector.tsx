@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import type { SeasonId, ViewId } from '@/config/views'
@@ -32,8 +32,10 @@ export default function ViewSelector(props: {
   const { season, seasonLabel, availableViews } = props
   const pathname = usePathname() || '/'
   const searchParams = useSearchParams()
+  const searchKey = searchParams.toString()
   const current: ViewId = (pathname === '/' ? 'oom' : pathname.slice(1)) as ViewId
   const [menuOpen, setMenuOpen] = useState(false)
+  const [optimisticView, setOptimisticView] = useState<ViewId | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useDismissibleMenu({
@@ -41,6 +43,10 @@ export default function ViewSelector(props: {
     rootRef: menuRef,
     onDismiss: () => setMenuOpen(false),
   })
+
+  useEffect(() => {
+    setOptimisticView(null)
+  }, [pathname, searchKey])
 
   function withSeason(href: string, seasonId: SeasonId): string {
     const params = new URLSearchParams(searchParams.toString())
@@ -50,17 +56,19 @@ export default function ViewSelector(props: {
   }
 
   function renderItem({ id, label, href }: ViewItem) {
-    const active = id === current
+    const active = id === (optimisticView ?? current)
     return (
       <Link
         key={id}
         href={withSeason(href, season)}
         aria-current={active ? 'page' : undefined}
+        onClick={() => setOptimisticView(id)}
         className={[
-          'px-4 py-2 rounded-full border text-sm transition-colors whitespace-nowrap',
+          'px-4 py-2 rounded-full border text-sm whitespace-nowrap',
+          'transition-all duration-300 ease-in-out',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500',
           active
-            ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-500 dark:border-emerald-500'
+            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm scale-[1.01] dark:bg-emerald-500 dark:border-emerald-500'
             : 'bg-white text-slate-800 border-slate-300 hover:border-slate-500 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:border-slate-500'
         ].join(' ')}
       >
