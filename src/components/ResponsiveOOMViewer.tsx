@@ -80,7 +80,9 @@ export default function ResponsiveOOMViewer(props: {
     if (!Number.isFinite(h) || h < 300) return
 
     const prev = sessionTableHeightLock ?? stableTableMinHeight
-    const next = Math.max(prev, Math.round(h * 1.03))
+    const next = Math.max(prev, h)
+    if (next <= prev) return
+
     sessionTableHeightLock = next
     setStableTableMinHeight(next)
     try {
@@ -88,7 +90,7 @@ export default function ResponsiveOOMViewer(props: {
     } catch {
       // no-op: storage may be unavailable in private mode
     }
-  }, [loading, headers.length, pageRows.length, stableTableMinHeight])
+  }, [loading, headers.length, pageRows.length])
 
   return (
     <div className="space-y-4">
