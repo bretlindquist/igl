@@ -65,7 +65,7 @@ export default function ResponsiveOOMViewer(props: {
     link.remove()
   }
 
-  const showInitialSkeleton = loading && headers.length === 0
+  const showInitialSkeleton = headers.length === 0 && !error
   const tableFrameRef = React.useRef<HTMLElement | null>(null)
   const [stableTableMinHeight, setStableTableMinHeight] = React.useState<number>(() => getInitialTableHeightLock())
 
