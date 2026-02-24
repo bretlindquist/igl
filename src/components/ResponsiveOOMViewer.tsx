@@ -1,27 +1,27 @@
 'use client'
 
 import React from 'react'
-
-const TABLE_HEIGHT_KEY = 'igg-table-height-avg-v1'
-let sessionTableHeightAvg: number | null = null
-
-function getInitialTableHeightAvg(): number {
-  if (sessionTableHeightAvg != null) return sessionTableHeightAvg
-  if (typeof window === 'undefined') return 980
-  const raw = window.sessionStorage.getItem(TABLE_HEIGHT_KEY)
-  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
-  if (Number.isFinite(parsed) && parsed > 300) {
-    sessionTableHeightAvg = parsed
-    return parsed
-  }
-  return 980
-}
 import type { OomSeasonMeta } from '@/config/views'
 import { formatDeadlineDMY } from './table/oom'
 import { toCSV } from './table/csv'
 import { useCsvTable } from './table/useCsvTable'
 import TableDesktop from './table/TableDesktop'
 import TableMobile from './table/TableMobile'
+
+const TABLE_HEIGHT_KEY = 'igg-table-height-lock-v2'
+let sessionTableHeightLock: number | null = null
+
+function getInitialTableHeightLock(): number {
+  if (sessionTableHeightLock != null) return sessionTableHeightLock
+  if (typeof window === 'undefined') return 1160
+  const raw = window.sessionStorage.getItem(TABLE_HEIGHT_KEY)
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
+  if (Number.isFinite(parsed) && parsed > 300) {
+    sessionTableHeightLock = parsed
+    return parsed
+  }
+  return 1160
+}
 
 export default function ResponsiveOOMViewer(props: {
   csvUrl: string
@@ -67,8 +67,8 @@ export default function ResponsiveOOMViewer(props: {
 
   const showInitialSkeleton = loading && headers.length === 0
   const showSwitchSkeleton = loading && headers.length > 0
-  const tableFrameRef = React.useRef<HTMLDivElement | null>(null)
-  const [stableTableMinHeight, setStableTableMinHeight] = React.useState<number>(() => getInitialTableHeightAvg())
+  const tableFrameRef = React.useRef<HTMLElement | null>(null)
+  const [stableTableMinHeight, setStableTableMinHeight] = React.useState<number>(() => getInitialTableHeightLock())
 
   React.useEffect(() => {
     if (loading || headers.length === 0) return
@@ -79,9 +79,9 @@ export default function ResponsiveOOMViewer(props: {
     const h = Math.round(el.getBoundingClientRect().height)
     if (!Number.isFinite(h) || h < 300) return
 
-    const prev = sessionTableHeightAvg ?? stableTableMinHeight
-    const next = Math.round(prev * 0.7 + h * 0.3)
-    sessionTableHeightAvg = next
+    const prev = sessionTableHeightLock ?? stableTableMinHeight
+    const next = Math.max(prev, Math.round(h * 1.03))
+    sessionTableHeightLock = next
     setStableTableMinHeight(next)
     try {
       window.sessionStorage.setItem(TABLE_HEIGHT_KEY, String(next))
@@ -139,7 +139,7 @@ export default function ResponsiveOOMViewer(props: {
 
       <section
         ref={tableFrameRef}
-        className="relative space-y-4"
+        className="relative space-y-4 transition-[min-height] duration-500 ease-in-out motion-reduce:transition-none"
         style={{ minHeight: `${stableTableMinHeight}px` }}
       >
         {showInitialSkeleton ? (
