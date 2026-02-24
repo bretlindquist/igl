@@ -16,6 +16,9 @@ export default async function ViewPage({
   const season = normalizeSeason(rawSeason)
   const views = getViews(season)
   const def = views[view] ?? views.oom
+  const prefetchSources = Object.values(views)
+    .filter((v): v is NonNullable<typeof v> => Boolean(v))
+    .map(v => ({ csvUrl: v.csv, fallbackCsvUrl: v.fallbackCsv }))
   return (
     <main className="page-shell">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -30,6 +33,7 @@ export default async function ViewPage({
           oomPreset={!def?.columns}
           columns={def?.columns}
           oomMeta={def?.oomMeta}
+          prefetchSources={prefetchSources}
         />
       </div>
     </main>

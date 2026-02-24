@@ -14,8 +14,9 @@ export default function ResponsiveOOMViewer(props: {
   oomPreset?: boolean
   columns?: string[]
   oomMeta?: OomSeasonMeta
+  prefetchSources?: { csvUrl: string; fallbackCsvUrl?: string }[]
 }) {
-  const { csvUrl, fallbackCsvUrl, columns, oomPreset, oomMeta } = props
+  const { csvUrl, fallbackCsvUrl, columns, oomPreset, oomMeta, prefetchSources } = props
 
   const {
     headers,
@@ -34,7 +35,7 @@ export default function ResponsiveOOMViewer(props: {
     toggleSelectedRow,
     sorted,
     pageRows,
-  } = useCsvTable({ csvUrl, fallbackCsvUrl, columns, oomPreset, oomMeta })
+  } = useCsvTable({ csvUrl, fallbackCsvUrl, columns, oomPreset, oomMeta, prefetchSources })
 
   function exportVisibleCSV() {
     const hdr = headers.filter(h => !hiddenCols.has(h))

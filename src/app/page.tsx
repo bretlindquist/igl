@@ -13,6 +13,9 @@ export default async function Page({
   const season = normalizeSeason(rawSeason)
   const views = getViews(season)
   const def = views[DEFAULT_VIEW]
+  const prefetchSources = Object.values(views)
+    .filter((v): v is NonNullable<typeof v> => Boolean(v))
+    .map(v => ({ csvUrl: v.csv, fallbackCsvUrl: v.fallbackCsv }))
   if (!def) return null
   const isOom = !def.columns
 
@@ -31,6 +34,7 @@ export default async function Page({
           oomPreset={isOom}
           columns={def.columns}
           oomMeta={def.oomMeta}
+          prefetchSources={prefetchSources}
         />
       </div>
     </main>

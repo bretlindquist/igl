@@ -5,17 +5,63 @@ import type { OomSeasonMeta } from '@/config/views'
 import { buildOomHeaderOrder, pickDefaultSort } from './oom'
 import { deriveHeaders, hasUsableName, isAllZeroOrBlank, norm, parseCSV, type Row } from './csv'
 
+const SESSION_CACHE_BUSTER = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const CSV_TEXT_CACHE = new Map<string, string>()
+const CSV_INFLIGHT = new Map<string, Promise<string>>()
+const CSV_FRESH_CHECKED = new Set<string>()
+const PREFETCH_BATCH_DONE = new Set<string>()
+
 function toProxiedCsvUrl(original: string): string {
   try {
     const u = new URL(original, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
     const isLocal = typeof window !== 'undefined' && u.origin === window.location.origin
     if (isLocal) {
-      u.searchParams.set('cb', String(Date.now()))
+      u.searchParams.set('cb', SESSION_CACHE_BUSTER)
       return u.toString()
     }
-    return `/api/sheet?src=${encodeURIComponent(u.toString())}&cb=${Date.now()}`
+    return `/api/sheet?src=${encodeURIComponent(u.toString())}&cb=${SESSION_CACHE_BUSTER}`
   } catch {
     return original
+  }
+}
+
+async function fetchCsvTextCached(url: string, forceFresh: boolean): Promise<string> {
+  if (!url) throw new Error('Missing CSV URL')
+  if (!forceFresh) {
+    const cached = CSV_TEXT_CACHE.get(url)
+    if (cached != null) return cached
+  }
+
+  const inflight = CSV_INFLIGHT.get(url)
+  if (inflight) return inflight
+
+  const req = (async () => {
+    const res = await fetch(toProxiedCsvUrl(url), { cache: 'no-store' })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const text = await res.text()
+    CSV_TEXT_CACHE.set(url, text)
+    CSV_FRESH_CHECKED.add(url)
+    return text
+  })()
+
+  CSV_INFLIGHT.set(url, req)
+  try {
+    return await req
+  } finally {
+    CSV_INFLIGHT.delete(url)
+  }
+}
+
+async function fetchWithFallback(
+  primaryUrl: string,
+  fallbackUrl?: string,
+  forceFresh = false,
+): Promise<string> {
+  try {
+    return await fetchCsvTextCached(primaryUrl, forceFresh || !CSV_FRESH_CHECKED.has(primaryUrl))
+  } catch (primaryErr) {
+    if (!fallbackUrl) throw primaryErr
+    return await fetchCsvTextCached(fallbackUrl, forceFresh || !CSV_FRESH_CHECKED.has(fallbackUrl))
   }
 }
 
@@ -25,10 +71,11 @@ export type CsvTableOptions = {
   columns?: string[]
   oomPreset?: boolean
   oomMeta?: OomSeasonMeta
+  prefetchSources?: { csvUrl: string; fallbackCsvUrl?: string }[]
 }
 
 export function useCsvTable(options: CsvTableOptions) {
-  const { csvUrl, fallbackCsvUrl, columns, oomPreset } = options
+  const { csvUrl, fallbackCsvUrl, columns, oomPreset, prefetchSources } = options
 
   const [rows, setRows] = useState<Row[]>([])
   const [headers, setHeaders] = useState<string[]>([])
@@ -44,10 +91,17 @@ export function useCsvTable(options: CsvTableOptions) {
   const requestSeqRef = useRef(0)
 
   useEffect(() => {
-    async function fetchCsvText(url: string): Promise<string> {
-      const res = await fetch(toProxiedCsvUrl(url), { cache: 'no-store' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.text()
+    const prefetchKey = JSON.stringify(
+      (prefetchSources ?? []).map(s => [s.csvUrl, s.fallbackCsvUrl ?? ''])
+    )
+    if ((prefetchSources?.length ?? 0) > 0 && !PREFETCH_BATCH_DONE.has(prefetchKey)) {
+      PREFETCH_BATCH_DONE.add(prefetchKey)
+      const sources = prefetchSources ?? []
+      Promise.all(
+        sources.map(s => fetchWithFallback(s.csvUrl, s.fallbackCsvUrl, true).catch(() => ''))
+      ).catch(() => {
+        // Prefetch is best-effort and should not break visible table loading.
+      })
     }
 
     const requestId = ++requestSeqRef.current
@@ -69,13 +123,7 @@ export function useCsvTable(options: CsvTableOptions) {
       setPageSize('all')
 
       try {
-        let text = ''
-        try {
-          text = await fetchCsvText(csvUrl)
-        } catch (primaryErr) {
-          if (!fallbackCsvUrl) throw primaryErr
-          text = await fetchCsvText(fallbackCsvUrl)
-        }
+        const text = await fetchWithFallback(csvUrl, fallbackCsvUrl)
 
         if (requestId !== requestSeqRef.current) return
 
@@ -171,7 +219,7 @@ export function useCsvTable(options: CsvTableOptions) {
     }
 
     load()
-  }, [csvUrl, fallbackCsvUrl, columns, oomPreset])
+  }, [csvUrl, fallbackCsvUrl, columns, oomPreset, prefetchSources])
 
   const filtered = useMemo(() => {
     if (!rows.length) return rows
