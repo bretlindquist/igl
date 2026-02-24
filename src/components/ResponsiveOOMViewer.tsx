@@ -50,10 +50,21 @@ export default function ResponsiveOOMViewer(props: {
     link.remove()
   }
 
+  const showInitialSkeleton = loading && headers.length === 0
+
   return (
     <div className="space-y-4">
       {error ? <div className="text-red-600 text-sm">{error}</div> : null}
-      {loading ? <div className="text-slate-600 text-sm">Loading…</div> : null}
+      {showInitialSkeleton ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" aria-busy="true">
+          <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
+          <div className="space-y-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="h-8 rounded-md bg-slate-100/95 skeleton-shimmer dark:bg-slate-800/80" />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
         <div className="w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
@@ -89,34 +100,42 @@ export default function ResponsiveOOMViewer(props: {
           <p id="table-search-help" className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Tip: separate terms with commas, for example `Joe, Robert`.
           </p>
+          {loading && !showInitialSkeleton ? (
+            <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" aria-live="polite">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse motion-reduce:animate-none" />
+              Updating table…
+            </div>
+          ) : null}
         </div>
 
       </div>
 
-      <TableDesktop
-        headers={headers}
-        hiddenCols={hiddenCols}
-        numericColumns={numericColumns}
-        pageRows={pageRows}
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={setSort}
-        oomMeta={oomMeta}
-        oomPreset={oomPreset}
-      />
+      <div className={`transition-opacity duration-200 motion-reduce:transition-none ${loading ? 'opacity-85' : 'opacity-100'}`}>
+        <TableDesktop
+          headers={headers}
+          hiddenCols={hiddenCols}
+          numericColumns={numericColumns}
+          pageRows={pageRows}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={setSort}
+          oomMeta={oomMeta}
+          oomPreset={oomPreset}
+        />
 
-      <TableMobile
-        headers={headers}
-        hiddenCols={hiddenCols}
-        pageRows={pageRows}
-        sortKey={sortKey}
-        sortDir={sortDir}
-        selectedRowKeys={selectedRowKeys}
-        onSort={setSort}
-        onToggleRow={toggleSelectedRow}
-        oomMeta={oomMeta}
-        oomPreset={oomPreset}
-      />
+        <TableMobile
+          headers={headers}
+          hiddenCols={hiddenCols}
+          pageRows={pageRows}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          selectedRowKeys={selectedRowKeys}
+          onSort={setSort}
+          onToggleRow={toggleSelectedRow}
+          oomMeta={oomMeta}
+          oomPreset={oomPreset}
+        />
+      </div>
 
       {headers.length > 0 ? (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
