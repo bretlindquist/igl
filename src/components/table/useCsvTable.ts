@@ -116,11 +116,6 @@ export function useCsvTable(options: CsvTableOptions) {
 
       setLoading(true)
       setError('')
-      setRows([])
-      setHeaders([])
-      setSelectedRowKeys(new Set())
-      setPage(1)
-      setPageSize('all')
 
       try {
         const text = await fetchWithFallback(csvUrl, fallbackCsvUrl)
