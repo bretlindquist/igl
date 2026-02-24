@@ -55,17 +55,6 @@ export default function ResponsiveOOMViewer(props: {
   return (
     <div className="space-y-4">
       {error ? <div className="text-red-600 text-sm">{error}</div> : null}
-      {showInitialSkeleton ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" aria-busy="true">
-          <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
-          <div className="space-y-2">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="h-8 rounded-md bg-slate-100/95 skeleton-shimmer dark:bg-slate-800/80" />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
         <div className="w-full md:flex-1 md:min-w-[560px] lg:min-w-[680px] xl:min-w-[760px]">
           <label htmlFor="table-search" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -109,6 +98,17 @@ export default function ResponsiveOOMViewer(props: {
         </div>
 
       </div>
+
+      {showInitialSkeleton ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" aria-busy="true">
+          <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
+          <div className="space-y-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="h-8 rounded-md bg-slate-100/95 skeleton-shimmer dark:bg-slate-800/80" />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className={`transition-opacity duration-200 motion-reduce:transition-none ${loading ? 'opacity-85' : 'opacity-100'}`}>
         <TableDesktop
