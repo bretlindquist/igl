@@ -66,7 +66,7 @@ export default function ResponsiveOOMViewer(props: {
   }
 
   const showInitialSkeleton = headers.length === 0 && !error
-  const showSwitchVeil = loading && headers.length > 0
+  const showSwitchVeil = false
   const tableFrameRef = React.useRef<HTMLElement | null>(null)
   const [stableTableMinHeight, setStableTableMinHeight] = React.useState<number>(() => getInitialTableHeightLock())
 
@@ -139,7 +139,7 @@ export default function ResponsiveOOMViewer(props: {
 
       <section
         ref={tableFrameRef}
-        className="relative space-y-4 transition-[min-height] duration-500 ease-in-out motion-reduce:transition-none"
+        className="relative space-y-4"
         style={{ minHeight: `${stableTableMinHeight}px` }}
       >
         {showInitialSkeleton ? (
@@ -153,7 +153,7 @@ export default function ResponsiveOOMViewer(props: {
           </div>
         ) : null}
 
-        <div className={`transition-all duration-300 ease-in-out motion-reduce:transition-none ${loading ? 'opacity-85' : 'opacity-100'}`}>
+        <div className="opacity-100">
           <TableDesktop
           headers={headers}
           hiddenCols={hiddenCols}
