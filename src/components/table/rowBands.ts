@@ -1,49 +1,40 @@
 export function getOomRowBandClasses(rowIdx: number, oomEnabled: boolean): {
   rowClass: string
+  rowOverlayClass: string
   cellBgClass: string
+  cellOverlayClass: string
   cellHoverClass: string
 } {
+  const isEven = rowIdx % 2 === 0
+  const baseRowClass = isEven
+    ? 'bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800'
+    : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800'
+  const baseCellBgClass = isEven ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'
+
   if (!oomEnabled) {
-    const isEven = rowIdx % 2 === 0
     return {
-      rowClass: isEven
-        ? 'bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800'
-        : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800',
-      cellBgClass: isEven ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950',
+      rowClass: baseRowClass,
+      rowOverlayClass: '',
+      cellBgClass: baseCellBgClass,
+      cellOverlayClass: '',
       cellHoverClass: 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800',
     }
   }
 
-  if (rowIdx < 8) {
-    return {
-      rowClass: 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40',
-      cellBgClass: 'bg-emerald-50 dark:bg-emerald-950/30',
-      cellHoverClass: 'group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/40',
-    }
-  }
+  const overlay =
+    rowIdx < 8
+      ? '[background-image:linear-gradient(rgba(16,185,129,0.10),rgba(16,185,129,0.10))] dark:[background-image:linear-gradient(rgba(16,185,129,0.14),rgba(16,185,129,0.14))]'
+      : rowIdx < 16
+        ? '[background-image:linear-gradient(rgba(14,165,233,0.10),rgba(14,165,233,0.10))] dark:[background-image:linear-gradient(rgba(14,165,233,0.14),rgba(14,165,233,0.14))]'
+        : rowIdx < 24
+          ? '[background-image:linear-gradient(rgba(245,158,11,0.10),rgba(245,158,11,0.10))] dark:[background-image:linear-gradient(rgba(245,158,11,0.14),rgba(245,158,11,0.14))]'
+          : ''
 
-  if (rowIdx < 16) {
-    return {
-      rowClass: 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/25 dark:hover:bg-sky-900/35',
-      cellBgClass: 'bg-sky-50 dark:bg-sky-950/25',
-      cellHoverClass: 'group-hover:bg-sky-100 dark:group-hover:bg-sky-900/35',
-    }
-  }
-
-  if (rowIdx < 24) {
-    return {
-      rowClass: 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-900/30',
-      cellBgClass: 'bg-amber-50 dark:bg-amber-950/20',
-      cellHoverClass: 'group-hover:bg-amber-100 dark:group-hover:bg-amber-900/30',
-    }
-  }
-
-  const isEven = rowIdx % 2 === 0
   return {
-    rowClass: isEven
-      ? 'bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800'
-      : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800',
-    cellBgClass: isEven ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950',
+    rowClass: baseRowClass,
+    rowOverlayClass: overlay,
+    cellBgClass: baseCellBgClass,
+    cellOverlayClass: overlay,
     cellHoverClass: 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800',
   }
 }

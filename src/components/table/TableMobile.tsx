@@ -82,6 +82,7 @@ export default function TableMobile(props: Props) {
                   key={rowIdx}
                   className={[
                     band.rowClass,
+                    band.rowOverlayClass,
                     'cursor-pointer',
                     isSelected ? 'ring-2 ring-emerald-500' : '',
                   ].join(' ')}

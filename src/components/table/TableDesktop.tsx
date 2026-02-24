@@ -58,7 +58,7 @@ export default function TableDesktop(props: Props) {
               return (
                 <tr
                   key={rowIdx}
-                  className={`group transition-colors ${band.rowClass}`}
+                  className={`group transition-colors ${band.rowClass} ${band.rowOverlayClass}`}
                 >
                 {visibleHeaders.map((h, colIdx) => {
                   const value = String(r[h] ?? '')
@@ -68,7 +68,7 @@ export default function TableDesktop(props: Props) {
                       key={h}
                       className={[
                         `px-2.5 py-1.5 whitespace-nowrap ${numericColumns.has(h) && !isName ? 'text-right tabular-nums' : 'text-left'}`,
-                        isName ? `sticky left-0 z-20 ${band.cellBgClass} ${band.cellHoverClass} border-r border-slate-200 dark:border-slate-700` : '',
+                        isName ? `sticky left-0 z-20 ${band.cellBgClass} ${band.cellOverlayClass} ${band.cellHoverClass} border-r border-slate-200 dark:border-slate-700` : '',
                       ].join(' ')}
                     >
                       {isName ? (
