@@ -4,6 +4,7 @@ import React from 'react'
 import type { OomSeasonMeta } from '@/config/views'
 import type { Row } from './csv'
 import { renderHeaderLabel } from './renderers'
+import { getOomRowBandClasses } from './rowBands'
 
 type Props = {
   headers: string[]
@@ -51,22 +52,22 @@ export default function TableDesktop(props: Props) {
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((r, rowIdx) => (
+            {pageRows.map((r, rowIdx) => {
+              const band = getOomRowBandClasses(rowIdx, Boolean(oomMeta))
+              return (
               <tr
                 key={rowIdx}
-                className="group odd:bg-white even:bg-slate-50 hover:bg-slate-100 transition-colors dark:odd:bg-slate-900 dark:even:bg-slate-950 dark:hover:bg-slate-800"
+                className={`group transition-colors ${band.rowClass}`}
               >
                 {visibleHeaders.map((h, colIdx) => {
                   const value = String(r[h] ?? '')
                   const isName = colIdx === nameIdx
-                  const rowBg = rowIdx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'
-                  const hoverBg = 'group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
                   return (
                     <td
                       key={h}
                       className={[
                         `px-2.5 py-1.5 whitespace-nowrap ${numericColumns.has(h) && !isName ? 'text-right tabular-nums' : 'text-left'}`,
-                        isName ? `sticky left-0 z-20 ${rowBg} ${hoverBg} border-r border-slate-200 dark:border-slate-700` : '',
+                        isName ? `sticky left-0 z-20 ${band.cellBgClass} ${band.cellHoverClass} border-r border-slate-200 dark:border-slate-700` : '',
                       ].join(' ')}
                     >
                       {isName ? (

@@ -4,6 +4,7 @@ import React, { useRef } from 'react'
 import type { OomSeasonMeta } from '@/config/views'
 import type { Row } from './csv'
 import { renderHeaderLabel } from './renderers'
+import { getOomRowBandClasses } from './rowBands'
 
 type Props = {
   headers: string[]
@@ -73,11 +74,13 @@ export default function TableMobile(props: Props) {
                 lastTapRef.current = { rowKey, time: now }
               }
 
+              const band = getOomRowBandClasses(rowIdx, Boolean(oomMeta))
+
               return (
                 <tr
                   key={rowIdx}
                   className={[
-                    'odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-950',
+                    band.rowClass,
                     'cursor-pointer',
                     isSelected ? 'ring-2 ring-emerald-500' : '',
                   ].join(' ')}
