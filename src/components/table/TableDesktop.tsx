@@ -55,10 +55,10 @@ export default function TableDesktop(props: Props) {
             {pageRows.map((r, rowIdx) => {
               const band = getOomRowBandClasses(rowIdx, Boolean(oomMeta))
               return (
-              <tr
-                key={rowIdx}
-                className={`group transition-colors ${band.rowClass}`}
-              >
+                <tr
+                  key={rowIdx}
+                  className={`group transition-colors ${band.rowClass}`}
+                >
                 {visibleHeaders.map((h, colIdx) => {
                   const value = String(r[h] ?? '')
                   const isName = colIdx === nameIdx
@@ -82,7 +82,8 @@ export default function TableDesktop(props: Props) {
                   )
                 })}
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
