@@ -51,6 +51,7 @@ export default function ResponsiveOOMViewer(props: {
   }
 
   const showInitialSkeleton = loading && headers.length === 0
+  const showSwitchSkeleton = loading && headers.length > 0
 
   return (
     <div className="space-y-4">
@@ -99,19 +100,20 @@ export default function ResponsiveOOMViewer(props: {
 
       </div>
 
-      {showInitialSkeleton ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" aria-busy="true">
-          <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
-          <div className="space-y-2">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="h-8 rounded-md bg-slate-100/95 skeleton-shimmer dark:bg-slate-800/80" />
-            ))}
+      <div className="relative">
+        {showInitialSkeleton ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" aria-busy="true">
+            <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
+            <div className="space-y-2">
+              {Array.from({ length: 16 }).map((_, i) => (
+                <div key={i} className="h-8 rounded-md bg-slate-100/95 skeleton-shimmer dark:bg-slate-800/80" />
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div className={`transition-opacity duration-200 motion-reduce:transition-none ${loading ? 'opacity-85' : 'opacity-100'}`}>
-        <TableDesktop
+        <div className={`transition-opacity duration-200 motion-reduce:transition-none ${loading ? 'opacity-85' : 'opacity-100'}`}>
+          <TableDesktop
           headers={headers}
           hiddenCols={hiddenCols}
           numericColumns={numericColumns}
@@ -123,18 +125,30 @@ export default function ResponsiveOOMViewer(props: {
           oomPreset={oomPreset}
         />
 
-        <TableMobile
-          headers={headers}
-          hiddenCols={hiddenCols}
-          pageRows={pageRows}
-          sortKey={sortKey}
-          sortDir={sortDir}
-          selectedRowKeys={selectedRowKeys}
-          onSort={setSort}
-          onToggleRow={toggleSelectedRow}
-          oomMeta={oomMeta}
-          oomPreset={oomPreset}
-        />
+          <TableMobile
+            headers={headers}
+            hiddenCols={hiddenCols}
+            pageRows={pageRows}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            selectedRowKeys={selectedRowKeys}
+            onSort={setSort}
+            onToggleRow={toggleSelectedRow}
+            oomMeta={oomMeta}
+            oomPreset={oomPreset}
+          />
+        </div>
+
+        {showSwitchSkeleton ? (
+          <div className="pointer-events-none absolute inset-0 z-40 rounded-2xl bg-white/55 p-3 backdrop-blur-[1px] dark:bg-slate-900/55" aria-hidden="true">
+            <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
+            <div className="space-y-2">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="h-8 rounded-md bg-slate-100/95 skeleton-shimmer dark:bg-slate-800/80" />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {headers.length > 0 ? (
