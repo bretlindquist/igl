@@ -137,9 +137,9 @@ export default function ResponsiveOOMViewer(props: {
 
       </div>
 
-      <div
+      <section
         ref={tableFrameRef}
-        className="relative"
+        className="relative space-y-4"
         style={{ minHeight: `${stableTableMinHeight}px` }}
       >
         {showInitialSkeleton ? (
@@ -153,7 +153,7 @@ export default function ResponsiveOOMViewer(props: {
           </div>
         ) : null}
 
-        <div className={`transition-opacity duration-200 motion-reduce:transition-none ${loading ? 'opacity-85' : 'opacity-100'}`}>
+        <div className={`transition-all duration-300 ease-in-out motion-reduce:transition-none ${loading ? 'opacity-85' : 'opacity-100'}`}>
           <TableDesktop
           headers={headers}
           hiddenCols={hiddenCols}
@@ -190,7 +190,6 @@ export default function ResponsiveOOMViewer(props: {
             </div>
           </div>
         ) : null}
-      </div>
 
       {headers.length > 0 ? (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -220,6 +219,7 @@ export default function ResponsiveOOMViewer(props: {
           </div>
         </div>
       ) : null}
+      </section>
 
       {(oomMeta?.deadlines?.length ?? 0) > 0 ? (
         <div className="mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
