@@ -15,10 +15,11 @@ type Props = {
   sortDir: 'asc' | 'desc'
   onSort: (header: string) => void
   oomMeta?: OomSeasonMeta
+  oomPreset?: boolean
 }
 
 export default function TableDesktop(props: Props) {
-  const { headers, hiddenCols, numericColumns, pageRows, sortKey, sortDir, onSort, oomMeta } = props
+  const { headers, hiddenCols, numericColumns, pageRows, sortKey, sortDir, onSort, oomMeta, oomPreset } = props
   const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
   const nameIdx = (() => {
     const i = visibleHeaders.findIndex(x => /screen\s*_?\s*name/i.test(x))
@@ -53,7 +54,7 @@ export default function TableDesktop(props: Props) {
           </thead>
           <tbody>
             {pageRows.map((r, rowIdx) => {
-              const band = getOomRowBandClasses(rowIdx, Boolean(oomMeta))
+              const band = getOomRowBandClasses(rowIdx, Boolean(oomPreset))
               return (
                 <tr
                   key={rowIdx}

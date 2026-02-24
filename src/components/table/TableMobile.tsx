@@ -16,10 +16,11 @@ type Props = {
   onSort: (header: string) => void
   onToggleRow: (rowKey: string) => void
   oomMeta?: OomSeasonMeta
+  oomPreset?: boolean
 }
 
 export default function TableMobile(props: Props) {
-  const { headers, hiddenCols, pageRows, sortKey, sortDir, selectedRowKeys, onSort, onToggleRow, oomMeta } = props
+  const { headers, hiddenCols, pageRows, sortKey, sortDir, selectedRowKeys, onSort, onToggleRow, oomMeta, oomPreset } = props
   const visibleHeaders = headers.filter(h => !hiddenCols.has(h))
   const nameHeader =
     visibleHeaders.find(h => /^screen\s*_?\s*name$/i.test(h)) ??
@@ -74,7 +75,7 @@ export default function TableMobile(props: Props) {
                 lastTapRef.current = { rowKey, time: now }
               }
 
-              const band = getOomRowBandClasses(rowIdx, Boolean(oomMeta))
+              const band = getOomRowBandClasses(rowIdx, Boolean(oomPreset))
 
               return (
                 <tr

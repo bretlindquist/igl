@@ -101,6 +101,7 @@ export default function ResponsiveOOMViewer(props: {
         sortDir={sortDir}
         onSort={setSort}
         oomMeta={oomMeta}
+        oomPreset={oomPreset}
       />
 
       <TableMobile
@@ -113,6 +114,7 @@ export default function ResponsiveOOMViewer(props: {
         onSort={setSort}
         onToggleRow={toggleSelectedRow}
         oomMeta={oomMeta}
+        oomPreset={oomPreset}
       />
 
       {headers.length > 0 ? (
