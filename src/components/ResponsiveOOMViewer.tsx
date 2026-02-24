@@ -1,6 +1,21 @@
 'use client'
 
 import React from 'react'
+
+const TABLE_HEIGHT_KEY = 'igg-table-height-avg-v1'
+let sessionTableHeightAvg: number | null = null
+
+function getInitialTableHeightAvg(): number {
+  if (sessionTableHeightAvg != null) return sessionTableHeightAvg
+  if (typeof window === 'undefined') return 980
+  const raw = window.sessionStorage.getItem(TABLE_HEIGHT_KEY)
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
+  if (Number.isFinite(parsed) && parsed > 300) {
+    sessionTableHeightAvg = parsed
+    return parsed
+  }
+  return 980
+}
 import type { OomSeasonMeta } from '@/config/views'
 import { formatDeadlineDMY } from './table/oom'
 import { toCSV } from './table/csv'
@@ -52,6 +67,28 @@ export default function ResponsiveOOMViewer(props: {
 
   const showInitialSkeleton = loading && headers.length === 0
   const showSwitchSkeleton = loading && headers.length > 0
+  const tableFrameRef = React.useRef<HTMLDivElement | null>(null)
+  const [stableTableMinHeight, setStableTableMinHeight] = React.useState<number>(() => getInitialTableHeightAvg())
+
+  React.useEffect(() => {
+    if (loading || headers.length === 0) return
+
+    const el = tableFrameRef.current
+    if (!el) return
+
+    const h = Math.round(el.getBoundingClientRect().height)
+    if (!Number.isFinite(h) || h < 300) return
+
+    const prev = sessionTableHeightAvg ?? stableTableMinHeight
+    const next = Math.round(prev * 0.7 + h * 0.3)
+    sessionTableHeightAvg = next
+    setStableTableMinHeight(next)
+    try {
+      window.sessionStorage.setItem(TABLE_HEIGHT_KEY, String(next))
+    } catch {
+      // no-op: storage may be unavailable in private mode
+    }
+  }, [loading, headers.length, pageRows.length, stableTableMinHeight])
 
   return (
     <div className="space-y-4">
@@ -100,7 +137,11 @@ export default function ResponsiveOOMViewer(props: {
 
       </div>
 
-      <div className="relative">
+      <div
+        ref={tableFrameRef}
+        className="relative"
+        style={{ minHeight: `${stableTableMinHeight}px` }}
+      >
         {showInitialSkeleton ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-live="polite" aria-busy="true">
             <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
