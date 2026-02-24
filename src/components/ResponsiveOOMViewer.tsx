@@ -66,7 +66,6 @@ export default function ResponsiveOOMViewer(props: {
   }
 
   const showInitialSkeleton = loading && headers.length === 0
-  const showSwitchSkeleton = loading && headers.length > 0
   const tableFrameRef = React.useRef<HTMLElement | null>(null)
   const [stableTableMinHeight, setStableTableMinHeight] = React.useState<number>(() => getInitialTableHeightLock())
 
@@ -180,16 +179,7 @@ export default function ResponsiveOOMViewer(props: {
           />
         </div>
 
-        {showSwitchSkeleton ? (
-          <div className="pointer-events-none absolute inset-0 z-40 rounded-2xl bg-white/55 p-3 backdrop-blur-[1px] dark:bg-slate-900/55" aria-hidden="true">
-            <div className="mb-3 h-8 w-56 rounded-lg bg-slate-200/90 skeleton-shimmer dark:bg-slate-700/80" />
-            <div className="space-y-2">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="h-8 rounded-md bg-slate-100/95 skeleton-shimmer dark:bg-slate-800/80" />
-              ))}
-            </div>
-          </div>
-        ) : null}
+        {/* switch-load skeleton removed: keep smooth content transition only */}
 
       {headers.length > 0 ? (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
