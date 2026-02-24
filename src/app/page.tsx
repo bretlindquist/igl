@@ -21,8 +21,7 @@ export default async function Page({
 
   return (
     <main className="page-shell">
-      {/* Full-width for OOM; normal centered for others */}
-      <div className={isOom ? 'w-full max-w-none space-y-6' : 'max-w-6xl mx-auto space-y-6'}>
+      <div className="max-w-6xl mx-auto space-y-6">
         <ViewSelector
           season={season}
           seasonLabel={getSeasonLabel(season)}
