@@ -8,7 +8,7 @@ const GROUP_COLORS = [
   "bg-secondary/40", // Next 8 - secondary tint
 ];
 
-type SortKey = "rank" | "total" | "appr" | `round-${number}`;
+type SortKey = "rank" | "name" | "total" | "appr" | `round-${number}`;
 type SortDir = "asc" | "desc";
 
 interface OOMTableProps {
@@ -25,7 +25,7 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "rank" ? "asc" : "desc");
+      setSortDir(key === "rank" || key === "name" ? "asc" : "desc");
     }
   };
 
@@ -34,6 +34,7 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
     arr.sort((a, b) => {
       let va: number, vb: number;
       if (sortKey === "rank") { va = a.rank; vb = b.rank; }
+      else if (sortKey === "name") { return sortDir === "asc" ? a.screenName.localeCompare(b.screenName) : b.screenName.localeCompare(a.screenName); }
       else if (sortKey === "total") { va = a.grandTotal; vb = b.grandTotal; }
       else if (sortKey === "appr") { va = a.appr; vb = b.appr; }
       else { const idx = parseInt(sortKey.split("-")[1]); va = a.rounds[idx] ?? 0; vb = b.rounds[idx] ?? 0; }
@@ -42,10 +43,10 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
     return arr;
   }, [players, sortKey, sortDir]);
 
-  const getGroupColor = (index: number) => {
-    if (index < 8) return GROUP_COLORS[0];
-    if (index < 16) return GROUP_COLORS[1];
-    if (index < 24) return GROUP_COLORS[2];
+  const getGroupColor = (rank: number) => {
+    if (rank <= 8) return GROUP_COLORS[0];
+    if (rank <= 16) return GROUP_COLORS[1];
+    if (rank <= 24) return GROUP_COLORS[2];
     return "";
   };
 
@@ -82,7 +83,7 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
           <thead>
             <tr className="bg-card border-b border-border/50">
               <th className={`sticky left-0 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("rank")}># <SortIcon col="rank" /></th>
-              <th className="sticky left-8 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap min-w-[140px]">Name</th>
+              <th className={`sticky left-8 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap min-w-[140px] ${thClick}`} onClick={() => handleSort("name")}>Name <SortIcon col="name" /></th>
               {courseLegend.map((c, i) => (
                 <th key={c.num} className={`px-3 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap min-w-[40px] ${thClick}`} onClick={() => handleSort(`round-${i}`)}>{c.num} <SortIcon col={`round-${i}`} /></th>
               ))}
@@ -92,7 +93,7 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
           </thead>
           <tbody>
             {sorted.map((player, i) => {
-              const groupBg = getGroupColor(i);
+              const groupBg = getGroupColor(player.rank);
               return (
                 <tr
                   key={player.screenName}

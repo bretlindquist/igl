@@ -52,6 +52,7 @@ const EclecticPlayerCard = ({ rank, name, displayName, score, handicap, total, h
             key={i}
             className={`text-center text-[9px] font-display rounded py-0.5 ${
               h === null ? "bg-secondary/30 text-muted-foreground/40" :
+              h === -2 ? "bg-gold/20 text-gold" :
               h < 0 ? "bg-primary/20 text-primary" :
               h > 0 ? "bg-destructive/20 text-destructive" :
               "bg-secondary/50 text-muted-foreground"
