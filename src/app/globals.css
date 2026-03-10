@@ -1,176 +1,88 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
 
-:root {
-  --background: #edf3fb;
-  --foreground: #152035;
-  --surface: #ffffff;
-  --border: rgba(77, 107, 146, 0.24);
-  --text-muted: #5f6f87;
-  --accent: #0a7d2c;
-  --focus: #167dff;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-pill: 999px;
-
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-6: 1.5rem;
-  --tabs-sticky-top: 8px;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0b0f16;
-    --foreground: #eaf0fb;
-    --surface: #172131;
-    --border: rgba(145, 169, 201, 0.22);
-    --text-muted: #9eaec7;
-    --accent: #4dd3ff;
-    --focus: #4dd3ff;
+    --background: 150 20% 6%;
+    --foreground: 60 20% 92%;
+
+    --card: 150 15% 10%;
+    --card-foreground: 60 20% 92%;
+
+    --popover: 150 15% 10%;
+    --popover-foreground: 60 20% 92%;
+
+    --primary: 150 50% 40%;
+    --primary-foreground: 60 20% 98%;
+
+    --secondary: 150 12% 16%;
+    --secondary-foreground: 60 20% 88%;
+
+    --muted: 150 10% 14%;
+    --muted-foreground: 150 8% 55%;
+
+    --accent: 42 80% 55%;
+    --accent-foreground: 150 20% 6%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 150 12% 18%;
+    --input: 150 12% 18%;
+    --ring: 150 50% 40%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --gold: 42 80% 55%;
+    --gold-foreground: 42 90% 12%;
+    --silver: 210 5% 72%;
+    --bronze: 25 60% 48%;
+    --rank-1: 42 80% 55%;
+    --rank-2: 210 5% 72%;
+    --rank-3: 25 60% 48%;
+    --surface-elevated: 150 14% 12%;
+    --green-glow: 150 60% 45%;
+
+    --sidebar-background: 150 15% 8%;
+    --sidebar-foreground: 60 20% 92%;
+    --sidebar-primary: 150 50% 40%;
+    --sidebar-primary-foreground: 60 20% 98%;
+    --sidebar-accent: 150 12% 16%;
+    --sidebar-accent-foreground: 60 20% 88%;
+    --sidebar-border: 150 12% 18%;
+    --sidebar-ring: 150 50% 40%;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-
-.page-shell {
-  padding-left: max(3px, env(safe-area-inset-left));
-  padding-right: max(3px, env(safe-area-inset-right));
-  padding-top: max(4px, env(safe-area-inset-top));
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
-}
-
-/* iOS (incl. Dynamic Island): add a small extra top buffer beyond safe-area inset. */
-@supports (-webkit-touch-callout: none) {
-  .page-shell {
-    padding-top: max(10px, calc(env(safe-area-inset-top) + 8px));
+@layer base {
+  * {
+    @apply border-border;
   }
-}
 
-@media (min-width: 768px) {
-  .page-shell {
-    padding-left: 1rem;
-    padding-right: 1rem;
-    padding-top: 1rem;
-    padding-bottom: 1rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  .page-shell {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
-  }
-}
-
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.season-menu-button {
-  position: fixed;
-  top: max(8px, env(safe-area-inset-top));
-  right: max(8px, env(safe-area-inset-right));
-  z-index: 70;
-}
-
-.season-menu-panel {
-  position: fixed;
-  top: calc(max(8px, env(safe-area-inset-top)) + 48px);
-  right: max(8px, env(safe-area-inset-right));
-  width: min(280px, calc(100vw - 16px));
-  z-index: 70;
-}
-
-.view-tabs-sticky {
-  position: sticky;
-  top: var(--tabs-sticky-top);
-  z-index: 50;
-}
-
-/* iOS Safari / PWA: slight additional top inset to avoid bar overlap. */
-@supports (-webkit-touch-callout: none) {
-  :root {
-    --tabs-sticky-top: env(safe-area-inset-top);
-  }
-}
-
-/* Compact portrait phones: show only course numbers in headers for tighter width. */
-@media (max-width: 767px) and (orientation: portrait) {
-  .compact-course-name {
-    display: none;
-  }
-}
-
-@media (min-width: 768px) {
-  :root {
-    --tabs-sticky-top: 12px;
-  }
-}
-
-@media (max-width: 1279px) {
-  html,
   body {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    @apply bg-background text-foreground font-body antialiased;
   }
 
-  html::-webkit-scrollbar,
-  body::-webkit-scrollbar {
-    display: none;
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
   }
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
+@layer utilities {
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--gold)), hsl(42, 90%, 70%));
   }
-  100% {
-    background-position: -200% 0;
+
+  .glow-green {
+    box-shadow: 0 0 30px -5px hsl(var(--green-glow) / 0.3);
   }
-}
 
-.skeleton-shimmer {
-  background-image: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.45) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.2s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton-shimmer {
-    animation: none;
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-md border border-border/50;
   }
-}
-
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
