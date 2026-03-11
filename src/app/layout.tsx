@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Providers from "./providers";
 import "./globals.css";
 
-const ASSET_VERSION = "20260223-1";
+const ASSET_VERSION = "20260311-1";
 
 export const metadata: Metadata = {
   title: {
