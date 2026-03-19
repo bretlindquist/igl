@@ -83,8 +83,8 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
         <table className="w-full text-xs font-body">
           <thead>
             <tr className="bg-card border-b border-border/50">
-              <th className={`sticky left-0 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("rank")}># <SortIcon col="rank" /></th>
-              <th className={`sticky left-8 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap min-w-[140px] ${thClick}`} onClick={() => handleSort("name")}>Name <SortIcon col="name" /></th>
+              <th className={`sticky left-0 z-10 bg-card px-2 md:px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("rank")}># <SortIcon col="rank" /></th>
+              <th className={`sticky left-6 md:left-8 z-10 bg-card px-2 md:px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap min-w-[104px] md:min-w-[140px] ${thClick}`} onClick={() => handleSort("name")}>Name <SortIcon col="name" /></th>
               {courseLegend.map((c, i) => (
                 <th key={c.num} className={`px-3 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap min-w-[40px] ${thClick}`} onClick={() => handleSort(`round-${i}`)}>{c.num} <SortIcon col={`round-${i}`} /></th>
               ))}
@@ -100,8 +100,8 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
                   key={player.screenName}
                   className={`border-b border-border/30 ${groupBg}`}
                 >
-                  <td className={`sticky left-0 z-10 px-3 py-2 text-muted-foreground font-display ${groupBg || "bg-background"}`}>{player.rank}</td>
-                  <td className={`sticky left-8 z-10 px-3 py-2 font-display font-medium text-foreground whitespace-nowrap ${groupBg || "bg-background"}`}>{player.screenName}</td>
+                  <td className={`sticky left-0 z-10 px-2 md:px-3 py-2 text-muted-foreground font-display ${groupBg || "bg-background"}`}>{player.rank}</td>
+                  <td className={`sticky left-6 md:left-8 z-10 px-2 md:px-3 py-2 font-display font-medium text-foreground whitespace-nowrap ${groupBg || "bg-background"}`}>{player.screenName}</td>
                   {player.rounds.map((r, j) => (
                     <td key={j} className={`px-3 py-2 text-center min-w-[40px] ${r > 0 ? "text-primary font-medium" : "text-muted-foreground/40"}`}>
                       {r}

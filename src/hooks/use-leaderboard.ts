@@ -85,7 +85,7 @@ async function fetchCSV(url: string): Promise<string[][]> {
 
 export function parseOOM(rows: string[][]): OOMPlayer[] {
   const dataRows = rows.slice(2);
-  return dataRows
+  const players = dataRows
     .filter(row => row.length >= 12 && row[1])
     .map(row => ({
       screenName: row[1],
@@ -100,8 +100,14 @@ export function parseOOM(rows: string[][]): OOMPlayer[] {
       ],
       grandTotal: parseFloat(row[9]) || 0,
       appr: parseFloat(row[10]) || 0,
-      rank: parseInt(row[11]) || 0,
-    }));
+      rank: 0,
+    }))
+    .sort((a, b) => b.grandTotal - a.grandTotal);
+
+  return players.map((player, index) => ({
+    ...player,
+    rank: index + 1,
+  }));
 }
 
 export function parseTQE(rows: string[][]): TQEPlayer[] {

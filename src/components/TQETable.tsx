@@ -89,8 +89,8 @@ const TQETable = ({ players }: TQETableProps) => {
       <table className="w-full text-xs font-body">
         <thead>
           <tr className="bg-card border-b border-border/50">
-            <th className={`sticky left-0 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("rank")}># <SortIcon column="rank" /></th>
-            <th className={`sticky left-8 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap min-w-[140px] ${thClick}`} onClick={() => handleSort("name")}>Name <SortIcon column="name" /></th>
+            <th className={`sticky left-0 z-10 bg-card px-2 md:px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("rank")}># <SortIcon column="rank" /></th>
+            <th className={`sticky left-6 md:left-8 z-10 bg-card px-2 md:px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap min-w-[104px] md:min-w-[140px] ${thClick}`} onClick={() => handleSort("name")}>Name <SortIcon column="name" /></th>
             <th className={`px-2 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("gross")}>Gross <SortIcon column="gross" /></th>
             <th className={`px-2 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("net")}>Net <SortIcon column="net" /></th>
             <th className={`px-2 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("comp")}>Comp <SortIcon column="comp" /></th>
@@ -106,8 +106,8 @@ const TQETable = ({ players }: TQETableProps) => {
                 key={player.screenName}
                 className={`border-b border-border/30 ${isTop3 ? "bg-primary/5" : i % 2 === 0 ? "bg-card/30" : ""}`}
               >
-                <td className="sticky left-0 z-10 px-3 py-2 text-muted-foreground font-display bg-inherit">{player.rank}</td>
-                <td className="sticky left-8 z-10 px-3 py-2 font-display font-medium text-foreground whitespace-nowrap bg-inherit">{player.screenName}</td>
+                <td className="sticky left-0 z-10 px-2 md:px-3 py-2 text-muted-foreground font-display bg-inherit">{player.rank}</td>
+                <td className="sticky left-6 md:left-8 z-10 px-2 md:px-3 py-2 font-display font-medium text-foreground whitespace-nowrap bg-inherit">{player.screenName}</td>
                 <td className="px-2 py-2 text-center text-muted-foreground">{player.gross}</td>
                 <td className="px-2 py-2 text-center text-muted-foreground">{player.absoluteNet}</td>
                 <td className="px-2 py-2 text-center text-muted-foreground">{player.compScore}</td>

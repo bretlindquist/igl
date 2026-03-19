@@ -26,6 +26,32 @@ describe("data sources", () => {
     ]);
   });
 
+  it("sorts OOM players by grand total and derives rank in app", () => {
+    const rows = parseCSV([
+      "header 1",
+      "header 2",
+      "2,player two,10,12,14,16,18,20,22,112,16.0,99",
+      "1,player one,10,12,14,16,18,20,22,120,15.0,1",
+    ].join("\n"));
+
+    expect(parseOOM(rows).map((player) => ({
+      screenName: player.screenName,
+      grandTotal: player.grandTotal,
+      rank: player.rank,
+    }))).toEqual([
+      {
+        screenName: "player one",
+        grandTotal: 120,
+        rank: 1,
+      },
+      {
+        screenName: "player two",
+        grandTotal: 112,
+        rank: 2,
+      },
+    ]);
+  });
+
   it("sorts TQE players by final points descending", () => {
     const rows = parseCSV([
       "header 1",
