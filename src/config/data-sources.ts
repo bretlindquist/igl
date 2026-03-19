@@ -11,7 +11,7 @@ export const SEASONS: SeasonConfig[] = [
   {
     id: "spring-2026",
     label: "Spring 2026",
-    tabs: ["OOM", "TQE-1", "TQE-2", "TQE-3", "Eclectic"],
+    tabs: ["OOM", "TQE-1", "TQE-2", "TQE-3", "TQE-4", "TQE-5", "TQE-6", "TQE-7", "Eclectic"],
     dataSources: {
       oom: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76ygkivaadAW5ln88ZUZpVSasm4WDsgLIn6ZupJrwhfafTYLgdYhrjmMizcKzA4Ikzr3t-3Zdzl-0/pub?gid=1778336569&output=csv",
       tqe1: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ76ygkivaadAW5ln88ZUZpVSasm4WDsgLIn6ZupJrwhfafTYLgdYhrjmMizcKzA4Ikzr3t-3Zdzl-0/pub?gid=1208158980&output=csv",
@@ -22,7 +22,11 @@ export const SEASONS: SeasonConfig[] = [
     tqeNames: {
       tqe1: "Mauna Ocean Resort (Mauna/Ocean)",
       tqe2: "Turnberry Ailsa",
-      tqe3: "TQE-3",
+      tqe3: "Bay Hill",
+      tqe4: "Bugok",
+      tqe5: "TBD",
+      tqe6: "TBD",
+      tqe7: "TBD",
     },
     courseLegend: [
       { num: "R1", name: "Mauna Ocean" },

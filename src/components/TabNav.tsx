@@ -8,12 +8,12 @@ interface TabNavProps {
 
 const TabNav = ({ tabs, activeTab, onTabChange }: TabNavProps) => {
   return (
-    <div className="flex gap-1 p-1 bg-card rounded-xl overflow-x-auto no-scrollbar">
+    <div className="hide-scrollbar flex gap-1 p-1 bg-card rounded-xl overflow-x-auto">
       {tabs.map((tab) => (
         <button
           key={tab}
           onClick={() => onTabChange(tab)}
-          className="relative px-4 py-2 text-sm font-display font-medium whitespace-nowrap rounded-lg transition-colors flex-1 min-w-0"
+          className="relative shrink-0 px-3 md:px-4 py-2 text-center text-sm font-display font-medium whitespace-nowrap rounded-lg transition-colors"
         >
           {activeTab === tab && (
             <motion.div
