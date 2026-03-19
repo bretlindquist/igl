@@ -90,7 +90,7 @@ const EclecticTable = ({ players }: EclecticTableProps) => {
   const thClick = "cursor-pointer select-none hover:text-foreground transition-colors";
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border/50 -mx-1">
+    <div className="hide-scrollbar overflow-x-auto rounded-lg border border-border/50 -mx-1">
       <table className="w-full text-xs font-body">
         <thead>
           <tr className="bg-card border-b border-border/50">
