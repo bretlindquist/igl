@@ -97,7 +97,7 @@ const EclecticTable = ({ players }: EclecticTableProps) => {
             <th className={`sticky left-0 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("rank")}># <SortIcon column="rank" /></th>
             <th className={`sticky left-8 z-10 bg-card px-3 py-2 text-left font-display font-semibold text-foreground whitespace-nowrap min-w-[140px] ${thClick}`} onClick={() => handleSort("name")}>Name <SortIcon column="name" /></th>
             {Array.from({ length: 18 }, (_, i) => (
-              <th key={i} className={`px-1.5 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort(`hole-${i}`)}>{i + 1} <SortIcon column={`hole-${i}`} /></th>
+              <th key={i} className={`px-1 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort(`hole-${i}`)}>{i + 1}</th>
             ))}
             <th className={`px-2 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("score")}>Score <SortIcon column="score" /></th>
             <th className={`px-2 py-2 text-center font-display font-medium text-muted-foreground whitespace-nowrap ${thClick}`} onClick={() => handleSort("handicap")}>H&apos;cap <SortIcon column="handicap" /></th>

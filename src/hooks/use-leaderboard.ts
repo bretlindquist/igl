@@ -28,6 +28,15 @@ export interface EclecticPlayer {
   rank: number;
 }
 
+function parseOptionalNumber(value: string | undefined): number | null {
+  if (value === undefined) return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "#N/A") return null;
+
+  const parsed = parseFloat(trimmed);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function parseCSV(text: string): string[][] {
   const rows: string[][] = [];
   let current = "";
@@ -112,25 +121,45 @@ export function parseTQE(rows: string[][]): TQEPlayer[] {
 
 export function parseEclectic(rows: string[][]): EclecticPlayer[] {
   const dataRows = rows.slice(1);
-  return dataRows
-    .filter(row => row.length >= 27 && row[0] && !row[0].includes("Grand Total"))
-    .map(row => {
+  const players = dataRows
+    .map((row) => {
+      if (row.length < 27) return null;
+
+      const screenName = row[0]?.trim() ?? "";
+      if (!screenName || screenName.includes("Grand Total") || screenName.replace(/\s/g, "") === "()") {
+        return null;
+      }
+
+      const score = parseOptionalNumber(row[19]);
+      const handicap = parseOptionalNumber(row[20]);
+      const total = parseOptionalNumber(row[21]);
+
+      if (score === null || handicap === null || total === null) {
+        return null;
+      }
+
       const holes: (number | null)[] = [];
       for (let i = 1; i <= 18; i++) {
-        const val = row[i];
-        holes.push(val === "" || val === undefined ? null : parseFloat(val));
+        holes.push(parseOptionalNumber(row[i]));
       }
+
       return {
-        screenName: row[0],
+        screenName,
         holes,
-        score: parseFloat(row[19]) || 0,
-        handicap: parseFloat(row[20]) || 0,
-        total: parseFloat(row[21]) || 0,
+        score,
+        handicap,
+        total,
         holesLocked: row[23] || "0%",
-        rank: parseInt(row[26]) || 999,
+        rank: 0,
       };
     })
+    .filter((player): player is EclecticPlayer => player !== null)
     .sort((a, b) => a.total - b.total);
+
+  return players.map((player, index) => ({
+    ...player,
+    rank: index + 1,
+  }));
 }
 
 export function useOOMData(season: SeasonConfig) {
