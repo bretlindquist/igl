@@ -18,12 +18,18 @@ import { DEFAULT_SEASON, SEASONS, getSeason } from "@/config/data-sources";
 import { useEclecticData, useOOMData, useTQEData } from "@/hooks/use-leaderboard";
 
 function parseName(screenName: string): { username: string; displayName: string } {
-  const match = screenName.match(/^(.+?)\s*\((.+)\)$/);
-  if (match) {
-    return {
-      username: match[1].trim(),
-      displayName: screenName.replace(match[1].trim(), "").replace(/^\s*\(/, "").replace(/\)$/, ""),
-    };
+  const firstParenIndex = screenName.indexOf(" (");
+  if (firstParenIndex !== -1) {
+    const username = screenName.slice(0, firstParenIndex).trim();
+    const groups = [...screenName.matchAll(/\(([^)]+)\)/g)].map((match) => match[1].trim());
+
+    if (username && groups.length > 0) {
+      const [primaryName, ...suffixes] = groups;
+      return {
+        username,
+        displayName: [primaryName, ...suffixes.map((suffix) => `(${suffix})`)].join(" "),
+      };
+    }
   }
 
   return { username: screenName, displayName: screenName };
