@@ -76,6 +76,10 @@ const EclecticTable = ({ players }: EclecticTableProps) => {
   }, [players, sortDir, sortKey]);
 
   const SortIcon = ({ column }: { column: SortKey }) => {
+    if (column !== "name") {
+      return null;
+    }
+
     if (sortKey !== column) {
       return <ArrowUpDown className="ml-0.5 inline h-3 w-3 opacity-30" />;
     }

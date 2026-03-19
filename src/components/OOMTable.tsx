@@ -51,6 +51,7 @@ const OOMTable = ({ players, courseLegend }: OOMTableProps) => {
   };
 
   const SortIcon = ({ col }: { col: SortKey }) => {
+    if (col !== "name") return null;
     if (sortKey !== col) return <ArrowUpDown className="inline ml-0.5 h-3 w-3 opacity-30" />;
     return sortDir === "asc"
       ? <ArrowUp className="inline ml-0.5 h-3 w-3 text-accent" />
