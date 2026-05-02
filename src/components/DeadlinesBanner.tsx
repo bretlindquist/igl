@@ -5,9 +5,9 @@ const deadlines = [
   { label: "TQE-2", course: "Turnberry (Ailsa)", deadline: "22/3/2026", setup: "Right / Right" },
   { label: "TQE-3", course: "Bay Hill", deadline: "5/4/2026", setup: "Left / Left" },
   { label: "TQE-4", course: "Bugok", deadline: "19/4/2026", setup: "Right / Right" },
-  { label: "TQE-5", course: "TBD", deadline: "TBD", setup: "Left / Left" },
-  { label: "TQE-6", course: "TBD", deadline: "TBD", setup: "Right / Right" },
-  { label: "TQE-7", course: "TBD", deadline: "TBD", setup: "Left / Left" },
+  { label: "TQE-5", course: "East Hill CC (Lake / Valley)", deadline: "3/5/2026", setup: "Left / Left" },
+  { label: "TQE-6", course: "Leaders CC (Hill / Lake)", deadline: "17/5/2026", setup: "Right / Right" },
+  { label: "TQE-7", course: "Alpine Chiang Mai (A / B) 알파인 치앙마이", deadline: "31/5/2026", setup: "Left / Left" },
 ];
 
 const DeadlinesBanner = () => {
