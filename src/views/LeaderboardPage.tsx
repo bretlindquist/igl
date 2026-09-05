@@ -65,7 +65,7 @@ export default function LeaderboardPage() {
   const handleSeasonChange = (id: string) => {
     const nextSeason = getSeason(id);
     setSeasonId(id);
-    if (!nextSeason.tabs.includes(activeTab)) {
+    if (!nextSeason.availableTabs.includes(activeTab)) {
       setActiveTab("OOM");
     }
   };
@@ -115,7 +115,12 @@ export default function LeaderboardPage() {
               </div>
             </div>
           </div>
-          <TabNav tabs={season.tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+          <TabNav
+            tabs={season.tabs}
+            availableTabs={season.availableTabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
         </div>
       </header>
 
@@ -252,7 +257,9 @@ export default function LeaderboardPage() {
           ) : null}
         </AnimatePresence>
 
-        {season.id === SEASONS[0].id ? <DeadlinesBanner /> : null}
+        {season.schedule.length > 0 ? (
+          <DeadlinesBanner seasonLabel={season.label} events={season.schedule} />
+        ) : null}
 
         <p className="pb-6 text-center font-display text-[10px] text-muted-foreground">
           Itaewon Golf League © 2026

@@ -8,6 +8,35 @@ describe("data sources", () => {
     expect(SEASONS[0]).toEqual(DEFAULT_SEASON);
   });
 
+  it("configures Autumn 2026 as the live season with only published tabs enabled", () => {
+    const autumn = getSeason("autumn-2026");
+
+    expect(DEFAULT_SEASON.id).toBe("autumn-2026");
+    expect(autumn.availableTabs).toEqual(["OOM", "TQE-1", "Eclectic"]);
+    expect(autumn.tabs).toEqual([
+      "OOM",
+      "TQE-1",
+      "TQE-2",
+      "TQE-3",
+      "TQE-4",
+      "TQE-5",
+      "TQE-6",
+      "TQE-7",
+      "Eclectic",
+    ]);
+    expect(autumn.dataSources.tqe2).toBeUndefined();
+    expect(autumn.schedule.map((event) => event.setup)).toEqual([
+      "Left / Left",
+      "Right / Right",
+      "Left / Left",
+    ]);
+    expect(autumn.schedule.map((event) => event.koreanCourse)).toEqual([
+      "디하이츠 (클라크)",
+      "이글 리지 (팔도)",
+      "에비앙 리조트",
+    ]);
+  });
+
   it("parses leaderboard CSV rows into OOM players", () => {
     const rows = parseCSV([
       "header 1",
