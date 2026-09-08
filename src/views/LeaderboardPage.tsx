@@ -98,19 +98,19 @@ export default function LeaderboardPage() {
   const shellWidth = view === "table" ? "max-w-4xl" : "max-w-lg";
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-lg">
-        <div className={`container mx-auto px-4 py-3 ${shellWidth}`}>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h1 className="font-display text-lg font-bold text-foreground">
+    <div className="golf-app-shell min-h-screen bg-background">
+      <header className="golf-app-header sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-lg">
+        <div className={`golf-app-header-inner container mx-auto px-4 py-3 ${shellWidth}`}>
+          <div className="golf-app-header-row mb-3 flex items-center justify-between gap-3">
+            <div className="golf-app-brand">
+              <h1 className="golf-app-title font-display text-lg font-bold text-foreground">
                 ⛳ Itaewon Golf League
               </h1>
               <SeasonSelector seasonId={seasonId} onChange={handleSeasonChange} />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="golf-app-controls flex items-center gap-2">
               <ViewToggle view={view} onChange={setView} />
-              <div className="rounded-full bg-primary/10 px-2.5 py-1 font-display text-[10px] font-semibold uppercase tracking-widest text-primary">
+              <div className="golf-app-live-badge rounded-full bg-primary/10 px-2.5 py-1 font-display text-[10px] font-semibold uppercase tracking-widest text-primary">
                 {season.id === SEASONS[0].id ? "Live" : "Archive"}
               </div>
             </div>
@@ -124,7 +124,7 @@ export default function LeaderboardPage() {
         </div>
       </header>
 
-      <main className={`container mx-auto space-y-4 px-4 py-4 ${shellWidth}`}>
+      <main className={`golf-app-main container mx-auto space-y-4 px-4 py-4 ${shellWidth}`}>
         <SearchBar value={search} onChange={setSearch} />
 
         {isLoading ? (
