@@ -31,10 +31,11 @@ export const SEASONS: SeasonConfig[] = [
     id: "autumn-2026",
     label: "Autumn 2026",
     tabs: ALL_TABS,
-    availableTabs: ["OOM", "TQE-1", "Eclectic"],
+    availableTabs: ["OOM", "TQE-1", "TQE-2", "Eclectic"],
     dataSources: {
       oom: csvUrl(AUTUMN_2026_BASE, "1778336569"),
       tqe1: csvUrl(AUTUMN_2026_BASE, "1208158980"),
+      tqe2: csvUrl(AUTUMN_2026_BASE, "1521728872"),
       eclectic: csvUrl(AUTUMN_2026_BASE, "1193845474"),
     },
     tqeNames: {

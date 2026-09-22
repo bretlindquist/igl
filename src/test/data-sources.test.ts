@@ -12,7 +12,7 @@ describe("data sources", () => {
     const autumn = getSeason("autumn-2026");
 
     expect(DEFAULT_SEASON.id).toBe("autumn-2026");
-    expect(autumn.availableTabs).toEqual(["OOM", "TQE-1", "Eclectic"]);
+    expect(autumn.availableTabs).toEqual(["OOM", "TQE-1", "TQE-2", "Eclectic"]);
     expect(autumn.tabs).toEqual([
       "OOM",
       "TQE-1",
@@ -24,7 +24,10 @@ describe("data sources", () => {
       "TQE-7",
       "Eclectic",
     ]);
-    expect(autumn.dataSources.tqe2).toBeUndefined();
+    expect(autumn.dataSources.tqe2).toBe(
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQREWXfgJ7aTDFeG_Z0pC0XEK3PhIwYhvDttIA6TgHsQ-gaPd2vcFVq1G9jE5IKbCq9AAMhuWiu6Egt/pub?gid=1521728872&output=csv"
+    );
+    expect(autumn.dataSources.tqe3).toBeUndefined();
     expect(autumn.schedule.map((event) => event.setup)).toEqual([
       "Left / Left",
       "Right / Right",
