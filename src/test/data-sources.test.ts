@@ -8,12 +8,9 @@ describe("data sources", () => {
     expect(SEASONS[0]).toEqual(DEFAULT_SEASON);
   });
 
-  it("configures Autumn 2026 as the live season with only published tabs enabled", () => {
+  it("configures Autumn 2026 as the live season with all published tabs enabled", () => {
     const autumn = getSeason("autumn-2026");
-
-    expect(DEFAULT_SEASON.id).toBe("autumn-2026");
-    expect(autumn.availableTabs).toEqual(["OOM", "TQE-1", "TQE-2", "Eclectic"]);
-    expect(autumn.tabs).toEqual([
+    const allTabs = [
       "OOM",
       "TQE-1",
       "TQE-2",
@@ -23,12 +20,29 @@ describe("data sources", () => {
       "TQE-6",
       "TQE-7",
       "Eclectic",
-    ]);
-    expect(autumn.dataSources.tqe2).toBe(
-      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQREWXfgJ7aTDFeG_Z0pC0XEK3PhIwYhvDttIA6TgHsQ-gaPd2vcFVq1G9jE5IKbCq9AAMhuWiu6Egt/pub?gid=1521728872&output=csv"
-    );
-    expect(autumn.dataSources.tqe3).toBeUndefined();
+    ];
+
+    expect(DEFAULT_SEASON.id).toBe("autumn-2026");
+    expect(autumn.availableTabs).toEqual(allTabs);
+    expect(autumn.tabs).toEqual(allTabs);
+    expect(Object.fromEntries(
+      Object.entries(autumn.dataSources)
+        .filter(([key]) => key.startsWith("tqe"))
+        .map(([key, url]) => [key, new URL(url).searchParams.get("gid")])
+    )).toEqual({
+      tqe1: "1208158980",
+      tqe2: "1521728872",
+      tqe3: "1845609019",
+      tqe4: "1340015654",
+      tqe5: "1087142582",
+      tqe6: "1087206475",
+      tqe7: "639052434",
+    });
     expect(autumn.schedule.map((event) => event.setup)).toEqual([
+      "Left / Left",
+      "Right / Right",
+      "Left / Left",
+      "Right / Right",
       "Left / Left",
       "Right / Right",
       "Left / Left",
@@ -37,6 +51,10 @@ describe("data sources", () => {
       "디하이츠 (클라크)",
       "이글 리지 (팔도)",
       "에비앙 리조트",
+      "노벨 CC (충무 / 가야)",
+      "해비치 CC",
+      "탄란 골프 클럽",
+      "양평 TPC (솔라 / 루나)",
     ]);
   });
 
